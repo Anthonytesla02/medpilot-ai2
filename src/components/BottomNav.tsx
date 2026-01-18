@@ -1,11 +1,11 @@
 import { motion } from 'framer-motion';
-import { MessageCircle, History, User, Sparkles } from 'lucide-react';
+import { MessageCircle, BookOpen, User, Sparkles } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { icon: MessageCircle, label: 'Chat', path: '/chat' },
-  { icon: History, label: 'History', path: '/history' },
+  { icon: BookOpen, label: 'Cases', path: '/cases' },
   { icon: Sparkles, label: 'Topics', path: '/topics' },
   { icon: User, label: 'Profile', path: '/profile' },
 ];

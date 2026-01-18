@@ -7,7 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Chat from "./pages/Chat";
-import History from "./pages/History";
+import CaseStudy from "./pages/CaseStudy";
 import Topics from "./pages/Topics";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
@@ -25,7 +25,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/chat" element={<Chat />} />
-            <Route path="/history" element={<History />} />
+            <Route path="/cases" element={<CaseStudy />} />
             <Route path="/topics" element={<Topics />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="*" element={<NotFound />} />
