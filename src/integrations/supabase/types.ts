@@ -210,6 +210,8 @@ export type Database = {
           case_studies_used: number
           chat_messages_used: number
           created_at: string
+          credits_purchased: number
+          credits_remaining: number
           id: string
           last_reset_at: string
           updated_at: string
@@ -219,6 +221,8 @@ export type Database = {
           case_studies_used?: number
           chat_messages_used?: number
           created_at?: string
+          credits_purchased?: number
+          credits_remaining?: number
           id?: string
           last_reset_at?: string
           updated_at?: string
@@ -228,6 +232,8 @@ export type Database = {
           case_studies_used?: number
           chat_messages_used?: number
           created_at?: string
+          credits_purchased?: number
+          credits_remaining?: number
           id?: string
           last_reset_at?: string
           updated_at?: string

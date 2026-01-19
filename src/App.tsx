@@ -10,6 +10,7 @@ import Chat from "./pages/Chat";
 import CaseStudy from "./pages/CaseStudy";
 import Topics from "./pages/Topics";
 import Profile from "./pages/Profile";
+import Pricing from "./pages/Pricing";
 import PaymentCallback from "./pages/PaymentCallback";
 import NotFound from "./pages/NotFound";
 
@@ -29,6 +30,7 @@ const App = () => (
             <Route path="/cases" element={<CaseStudy />} />
             <Route path="/topics" element={<Topics />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/pricing" element={<Pricing />} />
             <Route path="/payment-callback" element={<PaymentCallback />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

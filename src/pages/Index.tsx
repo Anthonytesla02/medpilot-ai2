@@ -1,10 +1,25 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Stethoscope, ArrowRight, Sparkles, Shield, Clock, BookOpen } from 'lucide-react';
+import { Stethoscope, ArrowRight, Sparkles, Shield, Clock, BookOpen, Zap, Crown, Rocket, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { PageLoader } from '@/components/PageLoader';
+import { PRICING_TIERS } from '@/hooks/useSubscription';
+import { cn } from '@/lib/utils';
+
+const tierIcons = {
+  starter: Zap,
+  standard: Crown,
+  premium: Rocket,
+};
+
+const tierColors = {
+  starter: 'text-blue-500',
+  standard: 'text-yellow-500',
+  premium: 'text-purple-500',
+};
 
 export default function Index() {
   const { user, loading } = useAuth();
@@ -41,6 +56,12 @@ export default function Index() {
       title: '24/7 Availability',
       description: 'Access medical treatment information anytime, anywhere on any device.',
     },
+  ];
+
+  const pricingTiers = [
+    { key: 'starter' as const },
+    { key: 'standard' as const, popular: true },
+    { key: 'premium' as const },
   ];
 
   return (
@@ -137,6 +158,102 @@ export default function Index() {
           ))}
         </motion.div>
       </div>
+
+      {/* Pricing Section */}
+      <section id="pricing" className="py-16 px-6 bg-muted/30">
+        <div className="max-w-5xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-12"
+          >
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              Simple, <span className="gradient-text">Credit-Based</span> Pricing
+            </h2>
+            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+              Buy credits and use them whenever you need. No monthly commitments.
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            {pricingTiers.map(({ key, popular }, index) => {
+              const tier = PRICING_TIERS[key];
+              const Icon = tierIcons[key];
+              
+              return (
+                <motion.div
+                  key={key}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: index * 0.1 }}
+                  className={cn(
+                    "relative rounded-2xl border-2 p-6 bg-card transition-all hover:shadow-lg",
+                    popular 
+                      ? "border-yellow-500 scale-105" 
+                      : "border-border hover:border-primary/50"
+                  )}
+                >
+                  {popular && (
+                    <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-yellow-500 text-yellow-950">
+                      Most Popular
+                    </Badge>
+                  )}
+
+                  <div className={cn(
+                    "w-10 h-10 rounded-lg flex items-center justify-center mb-4",
+                    key === 'starter' ? 'bg-blue-500/10' :
+                    key === 'standard' ? 'bg-yellow-500/10' :
+                    'bg-purple-500/10'
+                  )}>
+                    <Icon className={cn("h-5 w-5", tierColors[key])} />
+                  </div>
+
+                  <h3 className="text-lg font-bold mb-1">{tier.name}</h3>
+                  <p className="text-sm text-muted-foreground mb-4">{tier.description}</p>
+
+                  <div className="mb-4">
+                    <span className="text-3xl font-bold">GH₵{tier.amount}</span>
+                  </div>
+
+                  <div className="space-y-2 mb-6 text-sm">
+                    <div className="flex items-center gap-2">
+                      <Check className="h-4 w-4 text-green-500" />
+                      <span>{tier.credits} credits</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Check className="h-4 w-4 text-green-500" />
+                      <span>Never expires</span>
+                    </div>
+                  </div>
+
+                  <Button
+                    onClick={() => navigate('/auth')}
+                    className={cn(
+                      "w-full",
+                      popular && "bg-yellow-500 hover:bg-yellow-600 text-yellow-950"
+                    )}
+                  >
+                    Get Started
+                  </Button>
+                </motion.div>
+              );
+            })}
+          </div>
+
+          <motion.div
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            className="text-center mt-8"
+          >
+            <Button variant="link" onClick={() => navigate('/pricing')}>
+              View full pricing details →
+            </Button>
+          </motion.div>
+        </div>
+      </section>
 
       {/* Footer */}
       <footer className="py-6 px-6 border-t border-border/50">

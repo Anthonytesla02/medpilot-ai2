@@ -204,10 +204,10 @@ export default function CaseStudy() {
               Case Studies
             </h1>
             <div className="flex items-center gap-2">
-              {!limits?.isSubscribed && usage && (
+              {usage && (
                 <Badge variant="outline" className="text-xs">
                   <Crown className="w-3 h-3 mr-1" />
-                  {usage.caseStudiesUsed}/{usage.caseStudiesLimit}
+                  {usage.creditsRemaining} credits
                 </Badge>
               )}
               {casesCompleted > 0 && (

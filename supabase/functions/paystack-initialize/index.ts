@@ -5,11 +5,17 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Pricing tiers
+const PRICING_TIERS: Record<string, { amount: number; credits: number; name: string }> = {
+  starter: { amount: 100, credits: 5, name: 'Starter Pack' },      // 1 GHS = 100 pesewas
+  standard: { amount: 1000, credits: 50, name: 'Standard Pack' },  // 10 GHS
+  premium: { amount: 10000, credits: 100, name: 'Premium Pack' },  // 100 GHS
+  refill: { amount: 100, credits: 5, name: 'Refill Pack' },        // 1 GHS for testing
+};
+
 interface InitializeRequest {
-  email: string;
-  amount: number;
   callback_url: string;
-  channels?: string[];
+  tier: 'starter' | 'standard' | 'premium' | 'refill';
 }
 
 Deno.serve(async (req) => {
@@ -46,12 +52,31 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { callback_url } = await req.json() as InitializeRequest;
+    const { callback_url, tier = 'starter' }: InitializeRequest = await req.json();
+
+    // Validate tier
+    if (!PRICING_TIERS[tier]) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid pricing tier' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const selectedTier = PRICING_TIERS[tier];
 
     // Generate unique reference
-    const reference = `MEDIGUIDE-${user.id.slice(0, 8)}-${Date.now()}`;
+    const reference = `medi_${user.id.slice(0, 8)}_${tier}_${Date.now()}`;
 
-    // Initialize Paystack transaction (50 GHC = 5000 pesewas)
+    console.log('Initializing payment:', { 
+      user_id: user.id, 
+      email: user.email,
+      tier,
+      amount: selectedTier.amount,
+      credits: selectedTier.credits,
+      reference 
+    });
+
+    // Initialize Paystack transaction
     const paystackResponse = await fetch('https://api.paystack.co/transaction/initialize', {
       method: 'POST',
       headers: {
@@ -60,14 +85,16 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         email: user.email,
-        amount: 5000, // 50 GHC in pesewas
+        amount: selectedTier.amount, // in pesewas
         currency: 'GHS',
         reference,
         callback_url,
         channels: ['mobile_money', 'card', 'bank'],
         metadata: {
           user_id: user.id,
-          plan: 'monthly',
+          tier,
+          credits: selectedTier.credits,
+          tier_name: selectedTier.name,
         },
       }),
     });
@@ -75,27 +102,32 @@ Deno.serve(async (req) => {
     const paystackData = await paystackResponse.json();
 
     if (!paystackData.status) {
-      console.error('Paystack error:', paystackData);
+      console.error('Paystack initialization error:', paystackData);
       throw new Error(paystackData.message || 'Failed to initialize payment');
     }
 
-    // Record pending payment
+    // Record payment attempt in database
     await supabase.from('payment_history').insert({
       user_id: user.id,
-      amount: 5000,
-      currency: 'GHS',
       paystack_reference: reference,
+      amount: selectedTier.amount,
+      currency: 'GHS',
       status: 'pending',
-      payment_method: 'paystack',
+      metadata: {
+        tier,
+        credits: selectedTier.credits,
+        tier_name: selectedTier.name,
+      },
     });
 
-    console.log('Payment initialized:', { reference, user_id: user.id });
+    console.log('Payment initialized:', { reference, authorization_url: paystackData.data.authorization_url });
 
     return new Response(
       JSON.stringify({
         authorization_url: paystackData.data.authorization_url,
         reference: paystackData.data.reference,
         access_code: paystackData.data.access_code,
+        tier: selectedTier,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

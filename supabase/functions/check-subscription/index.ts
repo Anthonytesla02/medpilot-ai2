@@ -5,11 +5,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const FREE_TRIAL_LIMITS = {
-  chat_messages: 3,
-  case_studies: 3,
-};
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -64,13 +59,13 @@ Deno.serve(async (req) => {
     if (!usage) {
       await supabase.from('usage_tracking').insert({
         user_id: user.id,
-        chat_messages_used: 0,
-        case_studies_used: 0,
+        credits_remaining: 3,
+        credits_purchased: 0,
       });
     }
 
     const currentSubscription = subscription || { status: 'trial' };
-    const currentUsage = usage || { chat_messages_used: 0, case_studies_used: 0 };
+    const currentUsage = usage || { credits_remaining: 3, credits_purchased: 0, chat_messages_used: 0, case_studies_used: 0 };
 
     // Check if subscription is active
     let isActive = currentSubscription.status === 'active';
@@ -88,9 +83,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Determine usage limits
-    const canUseChat = isActive || currentUsage.chat_messages_used < FREE_TRIAL_LIMITS.chat_messages;
-    const canUseCaseStudy = isActive || currentUsage.case_studies_used < FREE_TRIAL_LIMITS.case_studies;
+    // Determine if user has credits
+    const hasCredits = currentUsage.credits_remaining > 0;
 
     return new Response(
       JSON.stringify({
@@ -99,15 +93,16 @@ Deno.serve(async (req) => {
           current_period_end: currentSubscription.current_period_end,
         },
         usage: {
+          credits_remaining: currentUsage.credits_remaining,
+          credits_purchased: currentUsage.credits_purchased,
           chat_messages_used: currentUsage.chat_messages_used,
           case_studies_used: currentUsage.case_studies_used,
-          chat_messages_limit: FREE_TRIAL_LIMITS.chat_messages,
-          case_studies_limit: FREE_TRIAL_LIMITS.case_studies,
         },
         limits: {
-          can_use_chat: canUseChat,
-          can_use_case_study: canUseCaseStudy,
+          can_use_chat: hasCredits,
+          can_use_case_study: hasCredits,
           is_subscribed: isActive,
+          has_credits: hasCredits,
         },
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

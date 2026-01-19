@@ -54,14 +54,29 @@ Deno.serve(async (req) => {
       // Create usage record if it doesn't exist
       await supabase.from('usage_tracking').insert({
         user_id: user.id,
+        credits_remaining: 2, // Started with 3, used 1
         chat_messages_used: type === 'chat' ? 1 : 0,
         case_studies_used: type === 'case_study' ? 1 : 0,
       });
     } else {
-      // Increment the appropriate counter
+      // Check if user has credits
+      if (usage.credits_remaining <= 0) {
+        return new Response(
+          JSON.stringify({ error: 'No credits remaining', credits_remaining: 0 }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Decrement credits and increment usage counter
       const updateData = type === 'chat'
-        ? { chat_messages_used: usage.chat_messages_used + 1 }
-        : { case_studies_used: usage.case_studies_used + 1 };
+        ? { 
+            credits_remaining: usage.credits_remaining - 1,
+            chat_messages_used: usage.chat_messages_used + 1 
+          }
+        : { 
+            credits_remaining: usage.credits_remaining - 1,
+            case_studies_used: usage.case_studies_used + 1 
+          };
 
       await supabase
         .from('usage_tracking')
@@ -69,10 +84,11 @@ Deno.serve(async (req) => {
         .eq('user_id', user.id);
     }
 
-    console.log('Usage incremented:', { user_id: user.id, type });
+    const newCredits = usage ? usage.credits_remaining - 1 : 2;
+    console.log('Usage incremented:', { user_id: user.id, type, credits_remaining: newCredits });
 
     return new Response(
-      JSON.stringify({ success: true }),
+      JSON.stringify({ success: true, credits_remaining: newCredits }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 

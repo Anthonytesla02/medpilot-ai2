@@ -266,10 +266,10 @@ export default function Chat() {
             <h1 className="font-semibold text-sm gradient-text">MediGuide AI</h1>
             <p className="text-xs text-muted-foreground">Ghana STG Assistant</p>
           </div>
-          {!limits?.isSubscribed && usage && (
+          {usage && (
             <Badge variant="outline" className="ml-2 text-xs">
               <Crown className="w-3 h-3 mr-1" />
-              {usage.chatMessagesUsed}/{usage.chatMessagesLimit}
+              {usage.creditsRemaining} credits
             </Badge>
           )}
         </div>

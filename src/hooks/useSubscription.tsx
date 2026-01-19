@@ -8,17 +8,27 @@ interface SubscriptionState {
 }
 
 interface UsageState {
+  creditsRemaining: number;
+  creditsPurchased: number;
   chatMessagesUsed: number;
   caseStudiesUsed: number;
-  chatMessagesLimit: number;
-  caseStudiesLimit: number;
 }
 
 interface LimitsState {
   canUseChat: boolean;
   canUseCaseStudy: boolean;
   isSubscribed: boolean;
+  hasCredits: boolean;
 }
+
+export type PricingTier = 'starter' | 'standard' | 'premium' | 'refill';
+
+export const PRICING_TIERS = {
+  starter: { amount: 1, credits: 5, name: 'Starter Pack', description: 'Perfect for trying out' },
+  standard: { amount: 10, credits: 50, name: 'Standard Pack', description: 'Best value for regular users' },
+  premium: { amount: 100, credits: 100, name: 'Premium Pack', description: 'For power users' },
+  refill: { amount: 1, credits: 5, name: 'Refill Credits', description: 'Quick top-up' },
+};
 
 export function useSubscription() {
   const { user, session } = useAuth();
@@ -48,16 +58,17 @@ export function useSubscription() {
       });
 
       setUsage({
+        creditsRemaining: data.usage.credits_remaining,
+        creditsPurchased: data.usage.credits_purchased,
         chatMessagesUsed: data.usage.chat_messages_used,
         caseStudiesUsed: data.usage.case_studies_used,
-        chatMessagesLimit: data.usage.chat_messages_limit,
-        caseStudiesLimit: data.usage.case_studies_limit,
       });
 
       setLimits({
         canUseChat: data.limits.can_use_chat,
         canUseCaseStudy: data.limits.can_use_case_study,
         isSubscribed: data.limits.is_subscribed,
+        hasCredits: data.limits.has_credits,
       });
     } catch (error) {
       console.error('Error checking subscription:', error);
@@ -78,21 +89,42 @@ export function useSubscription() {
     if (!session?.access_token) return;
 
     try {
-      await supabase.functions.invoke('increment-usage', {
+      const { data, error } = await supabase.functions.invoke('increment-usage', {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
         body: { type },
       });
 
-      // Refresh subscription state
-      await checkSubscription();
+      if (error) throw error;
+
+      // Update local state immediately
+      if (usage && data?.credits_remaining !== undefined) {
+        setUsage({
+          ...usage,
+          creditsRemaining: data.credits_remaining,
+          chatMessagesUsed: type === 'chat' ? usage.chatMessagesUsed + 1 : usage.chatMessagesUsed,
+          caseStudiesUsed: type === 'case_study' ? usage.caseStudiesUsed + 1 : usage.caseStudiesUsed,
+        });
+        
+        if (limits) {
+          setLimits({
+            ...limits,
+            hasCredits: data.credits_remaining > 0,
+            canUseChat: data.credits_remaining > 0,
+            canUseCaseStudy: data.credits_remaining > 0,
+          });
+        }
+      }
+
+      return data;
     } catch (error) {
       console.error('Error incrementing usage:', error);
+      throw error;
     }
   };
 
-  const initializePayment = async (callbackUrl: string) => {
+  const initializePayment = async (callbackUrl: string, tier: PricingTier = 'starter') => {
     if (!session?.access_token) {
       throw new Error('Not authenticated');
     }
@@ -101,7 +133,7 @@ export function useSubscription() {
       headers: {
         Authorization: `Bearer ${session.access_token}`,
       },
-      body: { callback_url: callbackUrl },
+      body: { callback_url: callbackUrl, tier },
     });
 
     if (error) throw error;

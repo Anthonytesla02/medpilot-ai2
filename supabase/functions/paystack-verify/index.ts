@@ -66,6 +66,10 @@ Deno.serve(async (req) => {
     const transaction = paystackData.data;
     const isSuccessful = transaction.status === 'success';
 
+    // Get credits from metadata
+    const creditsToAdd = transaction.metadata?.credits || 5;
+    const tierName = transaction.metadata?.tier_name || 'Credits';
+
     // Update payment history
     await supabase
       .from('payment_history')
@@ -77,48 +81,70 @@ Deno.serve(async (req) => {
           paid_at: transaction.paid_at,
           channel: transaction.channel,
           authorization: transaction.authorization,
+          credits_added: creditsToAdd,
+          tier_name: tierName,
         },
       })
       .eq('paystack_reference', reference);
 
     if (isSuccessful) {
-      // Calculate subscription period (30 days)
-      const now = new Date();
-      const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      // Get current usage to add credits
+      const { data: currentUsage } = await supabase
+        .from('usage_tracking')
+        .select('credits_remaining, credits_purchased')
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-      // Update subscription status
+      const currentCredits = currentUsage?.credits_remaining || 0;
+      const currentPurchased = currentUsage?.credits_purchased || 0;
+
+      // Add credits to user
+      if (currentUsage) {
+        await supabase
+          .from('usage_tracking')
+          .update({
+            credits_remaining: currentCredits + creditsToAdd,
+            credits_purchased: currentPurchased + creditsToAdd,
+          })
+          .eq('user_id', user.id);
+      } else {
+        await supabase
+          .from('usage_tracking')
+          .insert({
+            user_id: user.id,
+            credits_remaining: creditsToAdd,
+            credits_purchased: creditsToAdd,
+          });
+      }
+
+      // Update subscription status to active
       await supabase
         .from('subscriptions')
         .update({
           status: 'active',
           paystack_customer_code: transaction.customer?.customer_code,
-          current_period_start: now.toISOString(),
-          current_period_end: periodEnd.toISOString(),
         })
         .eq('user_id', user.id);
 
-      // Reset usage tracking
-      await supabase
-        .from('usage_tracking')
-        .update({
-          chat_messages_used: 0,
-          case_studies_used: 0,
-          last_reset_at: now.toISOString(),
-        })
-        .eq('user_id', user.id);
-
-      console.log('Subscription activated:', { user_id: user.id, period_end: periodEnd });
+      console.log('Credits added:', { 
+        user_id: user.id, 
+        credits_added: creditsToAdd,
+        new_total: currentCredits + creditsToAdd,
+      });
     }
 
     return new Response(
       JSON.stringify({
         success: isSuccessful,
-        message: isSuccessful ? 'Payment verified successfully' : 'Payment was not successful',
+        message: isSuccessful 
+          ? `Payment verified! ${creditsToAdd} credits added to your account.` 
+          : 'Payment was not successful',
         transaction: {
           status: transaction.status,
           amount: transaction.amount / 100,
           currency: transaction.currency,
           channel: transaction.channel,
+          credits_added: isSuccessful ? creditsToAdd : 0,
         },
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
