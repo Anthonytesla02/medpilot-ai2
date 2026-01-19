@@ -11,15 +11,22 @@ import {
   ChevronRight,
   Stethoscope,
   Moon,
-  Sun
+  Sun,
+  Crown,
+  CheckCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 import { BottomNav } from '@/components/BottomNav';
 import { PageLoader } from '@/components/PageLoader';
+import { UpgradeModal } from '@/components/UpgradeModal';
 import { useAuth } from '@/hooks/useAuth';
+import { useSubscription } from '@/hooks/useSubscription';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { format } from 'date-fns';
 
 interface Profile {
   display_name: string | null;
@@ -30,7 +37,9 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const { user, signOut, loading: authLoading } = useAuth();
+  const { subscription, usage, limits, loading: subLoading } = useSubscription();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -74,12 +83,14 @@ export default function ProfilePage() {
     { icon: HelpCircle, label: 'Help & Support', description: 'Get assistance' },
   ];
 
-  if (authLoading || loading) {
+  if (authLoading || loading || subLoading) {
     return <PageLoader />;
   }
 
   return (
     <div className="min-h-screen flex flex-col bg-background pb-20">
+      <UpgradeModal open={showUpgradeModal} onOpenChange={setShowUpgradeModal} />
+
       {/* Header */}
       <header className="glass border-b border-border/50">
         <div className="px-4 py-6">
@@ -96,17 +107,94 @@ export default function ProfilePage() {
             <div>
               <h1 className="text-xl font-bold">{profile?.display_name || 'User'}</h1>
               <p className="text-sm text-muted-foreground">{user?.email}</p>
+              <Badge 
+                variant={limits?.isSubscribed ? "default" : "secondary"} 
+                className="mt-1"
+              >
+                {limits?.isSubscribed ? (
+                  <>
+                    <Crown className="w-3 h-3 mr-1" />
+                    Premium
+                  </>
+                ) : (
+                  'Free Trial'
+                )}
+              </Badge>
             </div>
           </motion.div>
         </div>
       </header>
 
-      {/* Stats */}
+      {/* Subscription Card */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
         className="px-4 py-4"
+      >
+        {limits?.isSubscribed ? (
+          <Card className="border-primary/30 bg-primary/5">
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Crown className="w-5 h-5 text-primary" />
+                  <span className="font-semibold">Premium Plan</span>
+                </div>
+                <Badge variant="outline" className="text-green-600 border-green-600">
+                  Active
+                </Badge>
+              </div>
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                  Unlimited chat messages
+                </div>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                  Unlimited case studies
+                </div>
+                {subscription?.currentPeriodEnd && (
+                  <p className="text-xs text-muted-foreground pt-2">
+                    Renews on {format(new Date(subscription.currentPeriodEnd), 'MMM dd, yyyy')}
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="border-yellow-500/30 bg-yellow-500/5">
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="font-semibold">Free Trial</span>
+                <Badge variant="outline" className="text-yellow-600 border-yellow-600">
+                  Limited
+                </Badge>
+              </div>
+              <div className="space-y-2 text-sm mb-4">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>Chat messages</span>
+                  <span>{usage?.chatMessagesUsed || 0} / {usage?.chatMessagesLimit || 3}</span>
+                </div>
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>Case studies</span>
+                  <span>{usage?.caseStudiesUsed || 0} / {usage?.caseStudiesLimit || 3}</span>
+                </div>
+              </div>
+              <Button onClick={() => setShowUpgradeModal(true)} className="w-full">
+                <Crown className="w-4 h-4 mr-2" />
+                Upgrade to Premium - GH₵50/month
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+      </motion.div>
+
+      {/* Stats */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="px-4 py-2"
       >
         <div className="grid grid-cols-2 gap-3">
           <div className="p-4 rounded-xl bg-card border border-border/50">
@@ -133,7 +221,7 @@ export default function ProfilePage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+          transition={{ delay: 0.3 }}
         >
           <h2 className="text-sm font-medium text-muted-foreground mb-3 px-1">Settings</h2>
           <div className="p-4 rounded-xl bg-card border border-border/50 flex items-center justify-between">
@@ -154,7 +242,7 @@ export default function ProfilePage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
+          transition={{ delay: 0.4 }}
         >
           <h2 className="text-sm font-medium text-muted-foreground mb-3 px-1">Information</h2>
           <div className="space-y-2">
@@ -163,7 +251,7 @@ export default function ProfilePage() {
                 key={item.label}
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.3 + i * 0.1 }}
+                transition={{ delay: 0.4 + i * 0.1 }}
                 className="w-full p-4 rounded-xl bg-card border border-border/50 flex items-center gap-3 hover:border-primary/30 transition-colors"
               >
                 <item.icon className="w-5 h-5 text-muted-foreground" />
@@ -180,7 +268,7 @@ export default function ProfilePage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
+          transition={{ delay: 0.6 }}
           className="pt-4"
         >
           <Button
