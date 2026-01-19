@@ -172,17 +172,21 @@ export default function ProfilePage() {
               </div>
               <div className="space-y-2 text-sm mb-4">
                 <div className="flex items-center justify-between text-muted-foreground">
-                  <span>Chat messages</span>
-                  <span>{usage?.chatMessagesUsed || 0} / {usage?.chatMessagesLimit || 3}</span>
+                  <span>Credits remaining</span>
+                  <span className="font-semibold text-foreground">{usage?.creditsRemaining || 0}</span>
                 </div>
                 <div className="flex items-center justify-between text-muted-foreground">
-                  <span>Case studies</span>
-                  <span>{usage?.caseStudiesUsed || 0} / {usage?.caseStudiesLimit || 3}</span>
+                  <span>Total messages sent</span>
+                  <span>{usage?.chatMessagesUsed || 0}</span>
+                </div>
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>Case studies generated</span>
+                  <span>{usage?.caseStudiesUsed || 0}</span>
                 </div>
               </div>
               <Button onClick={() => setShowUpgradeModal(true)} className="w-full">
                 <Crown className="w-4 h-4 mr-2" />
-                Upgrade to Premium - GH₵50/month
+                Buy More Credits
               </Button>
             </CardContent>
           </Card>
