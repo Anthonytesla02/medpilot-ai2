@@ -17,7 +17,7 @@ export function BottomNav() {
     <motion.nav
       initial={{ y: 100 }}
       animate={{ y: 0 }}
-      className="fixed bottom-0 left-0 right-0 z-50 md:hidden safe-bottom"
+      className="fixed bottom-0 left-0 right-0 z-50 safe-bottom"
     >
       <div className="glass border-t border-border/50 px-2 py-2">
         <div className="flex items-center justify-around">
