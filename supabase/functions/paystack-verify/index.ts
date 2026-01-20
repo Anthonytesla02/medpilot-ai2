@@ -66,8 +66,8 @@ Deno.serve(async (req) => {
     const transaction = paystackData.data;
     const isSuccessful = transaction.status === 'success';
 
-    // Get credits from metadata
-    const creditsToAdd = transaction.metadata?.credits || 5;
+    // Get credits from metadata - ensure it's a number
+    const creditsToAdd = Number(transaction.metadata?.credits) || 5;
     const tierName = transaction.metadata?.tier_name || 'Credits';
 
     // Update payment history
@@ -95,8 +95,8 @@ Deno.serve(async (req) => {
         .eq('user_id', user.id)
         .maybeSingle();
 
-      const currentCredits = currentUsage?.credits_remaining || 0;
-      const currentPurchased = currentUsage?.credits_purchased || 0;
+      const currentCredits = Number(currentUsage?.credits_remaining) || 0;
+      const currentPurchased = Number(currentUsage?.credits_purchased) || 0;
 
       // Add credits to user
       if (currentUsage) {
