@@ -45,7 +45,7 @@ export default function Index() {
     },
   ];
 
-  const tier = PRICING_TIERS.starter;
+  const tier = PRICING_TIERS.standard;
 
   return (
     <div className="min-h-screen flex flex-col">

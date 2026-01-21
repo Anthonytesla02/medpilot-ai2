@@ -209,7 +209,11 @@ export default function CaseStudy() {
             </h1>
             <div className="flex items-center gap-2">
               {usage && (
-                <Badge variant="outline" className="text-xs">
+                <Badge 
+                  variant="outline" 
+                  className="text-xs cursor-pointer hover:bg-primary/10 transition-colors"
+                  onClick={() => setShowUpgradeModal(true)}
+                >
                   <Crown className="w-3 h-3 mr-1" />
                   {usage.creditsRemaining} credits
                 </Badge>

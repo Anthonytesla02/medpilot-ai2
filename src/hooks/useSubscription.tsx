@@ -21,10 +21,12 @@ interface LimitsState {
   hasCredits: boolean;
 }
 
-export type PricingTier = 'starter';
+export type PricingTier = 'basic' | 'standard' | 'premium';
 
 export const PRICING_TIERS = {
-  starter: { amount: 1, credits: 50, name: 'Starter Pack', description: 'Full access to all features' },
+  basic: { amount: 1, credits: 5, name: 'Basic Pack', description: 'Great for trying out' },
+  standard: { amount: 10, credits: 50, name: 'Standard Pack', description: 'Best value for regular use' },
+  premium: { amount: 50, credits: 300, name: 'Premium Pack', description: 'Maximum savings' },
 };
 
 export function useSubscription() {
@@ -121,7 +123,7 @@ export function useSubscription() {
     }
   };
 
-  const initializePayment = async (callbackUrl: string, tier: PricingTier = 'starter') => {
+  const initializePayment = async (callbackUrl: string, tier: PricingTier = 'basic') => {
     if (!session?.access_token) {
       throw new Error('Not authenticated');
     }
