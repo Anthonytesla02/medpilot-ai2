@@ -7,10 +7,7 @@ const corsHeaders = {
 
 // Pricing tiers
 const PRICING_TIERS: Record<string, { amount: number; credits: number; name: string }> = {
-  starter: { amount: 100, credits: 5, name: 'Starter Pack' },      // 1 GHS = 100 pesewas
-  standard: { amount: 1000, credits: 50, name: 'Standard Pack' },  // 10 GHS
-  premium: { amount: 10000, credits: 100, name: 'Premium Pack' },  // 100 GHS
-  refill: { amount: 100, credits: 5, name: 'Refill Pack' },        // 1 GHS for testing
+  starter: { amount: 100, credits: 50, name: 'Starter Pack' },      // 1 GHS = 100 pesewas
 };
 
 interface InitializeRequest {

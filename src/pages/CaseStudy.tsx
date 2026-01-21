@@ -85,9 +85,13 @@ export default function CaseStudy() {
     setUserDiagnosis('');
     setUserTreatment('');
 
-    // Increment usage for trial users
-    if (!limits?.isSubscribed) {
+    // Always deduct credits for case study generation
+    try {
       await incrementUsage('case_study');
+    } catch (error) {
+      console.error('Failed to deduct credit:', error);
+      setLoading(false);
+      return;
     }
 
     try {
