@@ -5,14 +5,16 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Pricing tiers
+// Pricing tiers (amounts in pesewas - 100 pesewas = 1 GHS)
 const PRICING_TIERS: Record<string, { amount: number; credits: number; name: string }> = {
-  starter: { amount: 100, credits: 50, name: 'Starter Pack' },      // 1 GHS = 100 pesewas
+  basic: { amount: 100, credits: 5, name: 'Basic Pack' },        // GH₵1 = 100 pesewas
+  standard: { amount: 1000, credits: 50, name: 'Standard Pack' }, // GH₵10 = 1000 pesewas
+  premium: { amount: 5000, credits: 300, name: 'Premium Pack' },  // GH₵50 = 5000 pesewas
 };
 
 interface InitializeRequest {
   callback_url: string;
-  tier: 'starter' | 'standard' | 'premium' | 'refill';
+  tier: 'basic' | 'standard' | 'premium';
 }
 
 Deno.serve(async (req) => {
@@ -49,7 +51,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { callback_url, tier = 'starter' }: InitializeRequest = await req.json();
+    const { callback_url, tier = 'basic' }: InitializeRequest = await req.json();
 
     // Validate tier
     if (!PRICING_TIERS[tier]) {

@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Check, Zap, ArrowLeft, Smartphone } from 'lucide-react';
+import { Check, Zap, ArrowLeft, Smartphone, Star, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
-import { useSubscription, PRICING_TIERS } from '@/hooks/useSubscription';
+import { useSubscription, PRICING_TIERS, PricingTier } from '@/hooks/useSubscription';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 export default function Pricing() {
   const navigate = useNavigate();
@@ -14,7 +15,7 @@ export default function Pricing() {
   const { initializePayment, usage } = useSubscription();
   const [loading, setLoading] = useState(false);
 
-  const handlePurchase = async () => {
+  const handlePurchase = async (tier: PricingTier) => {
     if (!user) {
       navigate('/auth');
       return;
@@ -23,7 +24,7 @@ export default function Pricing() {
     try {
       setLoading(true);
       const callbackUrl = `${window.location.origin}/payment-callback`;
-      const { authorization_url } = await initializePayment(callbackUrl, 'starter');
+      const { authorization_url } = await initializePayment(callbackUrl, tier);
       window.location.href = authorization_url;
     } catch (error) {
       console.error('Payment initialization error:', error);
@@ -32,7 +33,11 @@ export default function Pricing() {
     }
   };
 
-  const tier = PRICING_TIERS.starter;
+  const tiers: { key: PricingTier; icon: React.ReactNode; popular?: boolean }[] = [
+    { key: 'basic', icon: <Zap className="h-6 w-6" /> },
+    { key: 'standard', icon: <Star className="h-6 w-6" />, popular: true },
+    { key: 'premium', icon: <Sparkles className="h-6 w-6" /> },
+  ];
 
   return (
     <div className="min-h-screen bg-background">
@@ -70,62 +75,70 @@ export default function Pricing() {
           )}
         </motion.div>
 
-        {/* Pricing Card */}
-        <div className="max-w-md mx-auto mb-12">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="relative rounded-2xl border-2 border-primary p-8 transition-all hover:shadow-lg bg-card"
-          >
-            <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground">
-              Full Access
-            </Badge>
+        {/* Pricing Cards */}
+        <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto mb-12">
+          {tiers.map(({ key, icon, popular }, i) => {
+            const tier = PRICING_TIERS[key];
+            return (
+              <motion.div
+                key={key}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 * i }}
+                className={cn(
+                  "relative rounded-2xl border-2 p-6 transition-all hover:shadow-lg bg-card",
+                  popular ? "border-primary" : "border-border"
+                )}
+              >
+                {popular && (
+                  <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground">
+                    Best Value
+                  </Badge>
+                )}
 
-            <div className="w-16 h-16 rounded-xl bg-primary/10 flex items-center justify-center mb-6 mx-auto">
-              <Zap className="h-8 w-8 text-primary" />
-            </div>
+                <div className={cn(
+                  "w-12 h-12 rounded-xl flex items-center justify-center mb-4",
+                  popular ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                )}>
+                  {icon}
+                </div>
 
-            <h3 className="text-2xl font-bold mb-2 text-center">{tier.name}</h3>
-            <p className="text-sm text-muted-foreground mb-6 text-center">{tier.description}</p>
+                <h3 className="text-xl font-bold mb-1">{tier.name}</h3>
+                <p className="text-sm text-muted-foreground mb-4">{tier.description}</p>
 
-            <div className="mb-6 text-center">
-              <span className="text-5xl font-bold">GH₵{tier.amount}</span>
-              <span className="text-muted-foreground"> / one-time</span>
-            </div>
+                <div className="mb-4">
+                  <span className="text-4xl font-bold">GH₵{tier.amount}</span>
+                  <span className="text-muted-foreground text-sm ml-2">
+                    ({(tier.amount / tier.credits).toFixed(2)}/credit)
+                  </span>
+                </div>
 
-            <div className="space-y-3 mb-8">
-              <div className="flex items-center gap-3">
-                <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
-                <span>{tier.credits} credits</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
-                <span>Unlimited AI chat messages</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
-                <span>Unlimited case study generations</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
-                <span>Full access to Ghana STG</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
-                <span>Credits never expire</span>
-              </div>
-            </div>
+                <div className="space-y-2 mb-6 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Check className="h-4 w-4 text-green-500" />
+                    <span className="font-semibold">{tier.credits} credits</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Check className="h-4 w-4 text-green-500" />
+                    <span>Full access to all features</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Check className="h-4 w-4 text-green-500" />
+                    <span>Credits never expire</span>
+                  </div>
+                </div>
 
-            <Button
-              onClick={handlePurchase}
-              disabled={loading}
-              className="w-full"
-              size="lg"
-            >
-              {loading ? 'Processing...' : `Get ${tier.credits} Credits`}
-            </Button>
-          </motion.div>
+                <Button
+                  onClick={() => handlePurchase(key)}
+                  disabled={loading}
+                  variant={popular ? "default" : "outline"}
+                  className="w-full"
+                >
+                  {loading ? 'Processing...' : `Get ${tier.credits} Credits`}
+                </Button>
+              </motion.div>
+            );
+          })}
         </div>
 
         {/* Payment Methods */}

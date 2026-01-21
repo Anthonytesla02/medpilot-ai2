@@ -267,7 +267,11 @@ export default function Chat() {
             <p className="text-xs text-muted-foreground">Ghana STG Assistant</p>
           </div>
           {usage && (
-            <Badge variant="outline" className="ml-2 text-xs">
+            <Badge 
+              variant="outline" 
+              className="ml-2 text-xs cursor-pointer hover:bg-primary/10 transition-colors"
+              onClick={() => setShowUpgradeModal(true)}
+            >
               <Crown className="w-3 h-3 mr-1" />
               {usage.creditsRemaining} credits
             </Badge>

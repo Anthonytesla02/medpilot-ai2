@@ -7,9 +7,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Crown, Zap, Loader2, Smartphone, Check } from 'lucide-react';
-import { useSubscription, PRICING_TIERS } from '@/hooks/useSubscription';
+import { Crown, Zap, Loader2, Smartphone, Check, Star, Sparkles } from 'lucide-react';
+import { useSubscription, PRICING_TIERS, PricingTier } from '@/hooks/useSubscription';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 interface UpgradeModalProps {
   open: boolean;
@@ -20,12 +21,13 @@ interface UpgradeModalProps {
 export function UpgradeModal({ open, onOpenChange, triggerType }: UpgradeModalProps) {
   const { usage, initializePayment } = useSubscription();
   const [loading, setLoading] = useState(false);
+  const [selectedTier, setSelectedTier] = useState<PricingTier>('standard');
 
   const handleUpgrade = async () => {
     try {
       setLoading(true);
       const callbackUrl = `${window.location.origin}/payment-callback`;
-      const { authorization_url } = await initializePayment(callbackUrl, 'starter');
+      const { authorization_url } = await initializePayment(callbackUrl, selectedTier);
       
       // Redirect to Paystack payment page
       window.location.href = authorization_url;
@@ -36,7 +38,13 @@ export function UpgradeModal({ open, onOpenChange, triggerType }: UpgradeModalPr
     }
   };
 
-  const tierData = PRICING_TIERS.starter;
+  const tiers: { key: PricingTier; icon: React.ReactNode; popular?: boolean }[] = [
+    { key: 'basic', icon: <Zap className="h-5 w-5" /> },
+    { key: 'standard', icon: <Star className="h-5 w-5" />, popular: true },
+    { key: 'premium', icon: <Sparkles className="h-5 w-5" /> },
+  ];
+
+  const selectedTierData = PRICING_TIERS[selectedTier];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -44,10 +52,10 @@ export function UpgradeModal({ open, onOpenChange, triggerType }: UpgradeModalPr
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <Crown className="h-6 w-6 text-yellow-500" />
-            Get More Credits
+            Top Up Credits
           </DialogTitle>
           <DialogDescription>
-            Purchase credits to continue using MediGuide AI.
+            Choose a credit pack that suits your needs.
           </DialogDescription>
         </DialogHeader>
 
@@ -60,17 +68,54 @@ export function UpgradeModal({ open, onOpenChange, triggerType }: UpgradeModalPr
             </div>
           </div>
 
-          {/* Starter Pack Card */}
+          {/* Tier Selection */}
+          <div className="grid grid-cols-3 gap-2">
+            {tiers.map(({ key, icon, popular }) => {
+              const tier = PRICING_TIERS[key];
+              const isSelected = selectedTier === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setSelectedTier(key)}
+                  className={cn(
+                    "relative p-3 rounded-xl border-2 transition-all",
+                    isSelected 
+                      ? "border-primary bg-primary/5" 
+                      : "border-border hover:border-primary/50"
+                  )}
+                >
+                  {popular && (
+                    <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-[10px] px-2 py-0.5 rounded-full">
+                      Popular
+                    </span>
+                  )}
+                  <div className={cn(
+                    "flex justify-center mb-1",
+                    isSelected ? "text-primary" : "text-muted-foreground"
+                  )}>
+                    {icon}
+                  </div>
+                  <div className="text-lg font-bold">
+                    GH₵{tier.amount}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {tier.credits} credits
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Selected Pack Details */}
           <div className="p-4 rounded-xl border-2 border-primary bg-primary/5">
-            <div className="flex items-center gap-2 mb-2">
-              <Zap className="h-5 w-5 text-primary" />
-              <span className="font-semibold">{tierData.name}</span>
-            </div>
-            <div className="text-2xl font-bold">
-              GH₵{tierData.amount}
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-semibold">{selectedTierData.name}</span>
+              <span className="text-xs text-muted-foreground">
+                GH₵{(selectedTierData.amount / selectedTierData.credits).toFixed(2)}/credit
+              </span>
             </div>
             <div className="text-sm text-muted-foreground">
-              {tierData.credits} credits
+              {selectedTierData.description}
             </div>
           </div>
 
@@ -110,7 +155,7 @@ export function UpgradeModal({ open, onOpenChange, triggerType }: UpgradeModalPr
             ) : (
               <>
                 <Crown className="mr-2 h-4 w-4" />
-                Pay GH₵{tierData.amount} for {tierData.credits} Credits
+                Pay GH₵{selectedTierData.amount} for {selectedTierData.credits} Credits
               </>
             )}
           </Button>
