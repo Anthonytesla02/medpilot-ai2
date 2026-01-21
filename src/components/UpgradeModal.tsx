@@ -7,62 +7,47 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Crown, Zap, Rocket, Loader2, Smartphone, Check } from 'lucide-react';
-import { useSubscription, PRICING_TIERS, PricingTier } from '@/hooks/useSubscription';
+import { Crown, Zap, Loader2, Smartphone, Check } from 'lucide-react';
+import { useSubscription, PRICING_TIERS } from '@/hooks/useSubscription';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
 
 interface UpgradeModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   triggerType?: 'chat' | 'case_study';
-  isRefill?: boolean;
 }
 
-const tierIcons = {
-  starter: Zap,
-  standard: Crown,
-  premium: Rocket,
-  refill: Zap,
-};
-
-export function UpgradeModal({ open, onOpenChange, triggerType, isRefill = false }: UpgradeModalProps) {
+export function UpgradeModal({ open, onOpenChange, triggerType }: UpgradeModalProps) {
   const { usage, initializePayment } = useSubscription();
-  const [loading, setLoading] = useState<PricingTier | null>(null);
-  const [selectedTier, setSelectedTier] = useState<PricingTier>(isRefill ? 'refill' : 'starter');
+  const [loading, setLoading] = useState(false);
 
-  const handleUpgrade = async (tier: PricingTier) => {
+  const handleUpgrade = async () => {
     try {
-      setLoading(tier);
+      setLoading(true);
       const callbackUrl = `${window.location.origin}/payment-callback`;
-      const { authorization_url } = await initializePayment(callbackUrl, tier);
+      const { authorization_url } = await initializePayment(callbackUrl, 'starter');
       
       // Redirect to Paystack payment page
       window.location.href = authorization_url;
     } catch (error) {
       console.error('Payment initialization error:', error);
       toast.error('Failed to initialize payment. Please try again.');
-      setLoading(null);
+      setLoading(false);
     }
   };
 
-  const displayTiers = isRefill 
-    ? ['refill'] as PricingTier[]
-    : ['starter', 'standard', 'premium'] as PricingTier[];
+  const tierData = PRICING_TIERS.starter;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <Crown className="h-6 w-6 text-yellow-500" />
-            {isRefill ? 'Refill Credits' : 'Get More Credits'}
+            Get More Credits
           </DialogTitle>
           <DialogDescription>
-            {isRefill 
-              ? 'Top up your credits to continue using MediGuide AI.'
-              : 'Choose a plan that works for you.'}
+            Purchase credits to continue using MediGuide AI.
           </DialogDescription>
         </DialogHeader>
 
@@ -75,57 +60,18 @@ export function UpgradeModal({ open, onOpenChange, triggerType, isRefill = false
             </div>
           </div>
 
-          {/* Pricing Tiers */}
-          <div className={cn(
-            "grid gap-3",
-            displayTiers.length === 1 ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-3"
-          )}>
-            {displayTiers.map((tier) => {
-              const tierData = PRICING_TIERS[tier];
-              const Icon = tierIcons[tier];
-              const isSelected = selectedTier === tier;
-              const isPopular = tier === 'standard';
-              
-              return (
-                <button
-                  key={tier}
-                  onClick={() => setSelectedTier(tier)}
-                  className={cn(
-                    "relative p-4 rounded-xl border-2 transition-all text-left",
-                    isSelected 
-                      ? "border-primary bg-primary/5" 
-                      : "border-border hover:border-primary/50",
-                    isPopular && "ring-2 ring-yellow-500/20"
-                  )}
-                >
-                  {isPopular && (
-                    <Badge className="absolute -top-2 left-1/2 -translate-x-1/2 bg-yellow-500 text-yellow-950">
-                      Best Value
-                    </Badge>
-                  )}
-                  <div className="flex items-center gap-2 mb-2">
-                    <Icon className={cn(
-                      "h-5 w-5",
-                      tier === 'premium' ? "text-purple-500" :
-                      tier === 'standard' ? "text-yellow-500" :
-                      "text-primary"
-                    )} />
-                    <span className="font-semibold">{tierData.name}</span>
-                  </div>
-                  <div className="text-2xl font-bold">
-                    GH₵{tierData.amount}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {tierData.credits} credits
-                  </div>
-                  {isSelected && (
-                    <div className="absolute top-2 right-2">
-                      <Check className="h-5 w-5 text-primary" />
-                    </div>
-                  )}
-                </button>
-              );
-            })}
+          {/* Starter Pack Card */}
+          <div className="p-4 rounded-xl border-2 border-primary bg-primary/5">
+            <div className="flex items-center gap-2 mb-2">
+              <Zap className="h-5 w-5 text-primary" />
+              <span className="font-semibold">{tierData.name}</span>
+            </div>
+            <div className="text-2xl font-bold">
+              GH₵{tierData.amount}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              {tierData.credits} credits
+            </div>
           </div>
 
           {/* What you get */}
@@ -151,12 +97,12 @@ export function UpgradeModal({ open, onOpenChange, triggerType, isRefill = false
 
           {/* CTA Button */}
           <Button 
-            onClick={() => handleUpgrade(selectedTier)} 
+            onClick={handleUpgrade} 
             className="w-full" 
             size="lg"
-            disabled={loading !== null}
+            disabled={loading}
           >
-            {loading !== null ? (
+            {loading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Initializing Payment...
@@ -164,7 +110,7 @@ export function UpgradeModal({ open, onOpenChange, triggerType, isRefill = false
             ) : (
               <>
                 <Crown className="mr-2 h-4 w-4" />
-                Pay GH₵{PRICING_TIERS[selectedTier].amount} for {PRICING_TIERS[selectedTier].credits} Credits
+                Pay GH₵{tierData.amount} for {tierData.credits} Credits
               </>
             )}
           </Button>

@@ -21,13 +21,10 @@ interface LimitsState {
   hasCredits: boolean;
 }
 
-export type PricingTier = 'starter' | 'standard' | 'premium' | 'refill';
+export type PricingTier = 'starter';
 
 export const PRICING_TIERS = {
-  starter: { amount: 1, credits: 5, name: 'Starter Pack', description: 'Perfect for trying out' },
-  standard: { amount: 10, credits: 50, name: 'Standard Pack', description: 'Best value for regular users' },
-  premium: { amount: 100, credits: 100, name: 'Premium Pack', description: 'For power users' },
-  refill: { amount: 1, credits: 5, name: 'Refill Credits', description: 'Quick top-up' },
+  starter: { amount: 1, credits: 50, name: 'Starter Pack', description: 'Full access to all features' },
 };
 
 export function useSubscription() {
