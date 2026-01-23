@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import { useTheme } from 'next-themes';
 import { 
   User, 
   Mail, 
@@ -36,8 +37,8 @@ interface Profile {
 export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const { theme, setTheme } = useTheme();
   const { user, signOut, loading: authLoading } = useAuth();
   const { subscription, usage, limits, loading: subLoading } = useSubscription();
   const navigate = useNavigate();
@@ -230,15 +231,15 @@ export default function ProfilePage() {
           <h2 className="text-sm font-medium text-muted-foreground mb-3 px-1">Settings</h2>
           <div className="p-4 rounded-xl bg-card border border-border/50 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              {darkMode ? <Moon className="w-5 h-5 text-muted-foreground" /> : <Sun className="w-5 h-5 text-muted-foreground" />}
+              {theme === 'dark' ? <Moon className="w-5 h-5 text-muted-foreground" /> : <Sun className="w-5 h-5 text-muted-foreground" />}
               <div>
                 <p className="font-medium">Dark Mode</p>
                 <p className="text-xs text-muted-foreground">Switch theme appearance</p>
               </div>
             </div>
             <Switch
-              checked={darkMode}
-              onCheckedChange={setDarkMode}
+              checked={theme === 'dark'}
+              onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
             />
           </div>
         </motion.div>
