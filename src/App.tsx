@@ -13,6 +13,7 @@ import Topics from "./pages/Topics";
 import Profile from "./pages/Profile";
 import Pricing from "./pages/Pricing";
 import PaymentCallback from "./pages/PaymentCallback";
+import MCQPractice from "./pages/MCQPractice";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +35,7 @@ const App = () => (
               <Route path="/profile" element={<Profile />} />
               <Route path="/pricing" element={<Pricing />} />
               <Route path="/payment-callback" element={<PaymentCallback />} />
+              <Route path="/mcq-practice" element={<MCQPractice />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

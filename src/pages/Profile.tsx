@@ -14,7 +14,8 @@ import {
   Moon,
   Sun,
   Crown,
-  CheckCircle
+  CheckCircle,
+  ClipboardList
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -247,7 +248,29 @@ export default function ProfilePage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
+          transition={{ delay: 0.35 }}
+        >
+          <h2 className="text-sm font-medium text-muted-foreground mb-3 px-1">Practice</h2>
+          <motion.button
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.4 }}
+            onClick={() => navigate('/mcq-practice')}
+            className="w-full p-4 rounded-xl bg-card border border-border/50 flex items-center gap-3 hover:border-primary/30 transition-colors"
+          >
+            <ClipboardList className="w-5 h-5 text-primary" />
+            <div className="flex-1 text-left">
+              <p className="font-medium">MCQ Practice</p>
+              <p className="text-xs text-muted-foreground">Test your pharmacy knowledge</p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-muted-foreground" />
+          </motion.button>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.45 }}
         >
           <h2 className="text-sm font-medium text-muted-foreground mb-3 px-1">Information</h2>
           <div className="space-y-2">
@@ -256,7 +279,7 @@ export default function ProfilePage() {
                 key={item.label}
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.4 + i * 0.1 }}
+                transition={{ delay: 0.5 + i * 0.1 }}
                 className="w-full p-4 rounded-xl bg-card border border-border/50 flex items-center gap-3 hover:border-primary/30 transition-colors"
               >
                 <item.icon className="w-5 h-5 text-muted-foreground" />
