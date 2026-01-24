@@ -9,11 +9,12 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Chat from "./pages/Chat";
 import CaseStudy from "./pages/CaseStudy";
-import Topics from "./pages/Topics";
+import Tests from "./pages/Tests";
 import Profile from "./pages/Profile";
 import Pricing from "./pages/Pricing";
 import PaymentCallback from "./pages/PaymentCallback";
 import MCQPractice from "./pages/MCQPractice";
+import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -31,11 +32,12 @@ const App = () => (
               <Route path="/auth" element={<Auth />} />
               <Route path="/chat" element={<Chat />} />
               <Route path="/cases" element={<CaseStudy />} />
-              <Route path="/topics" element={<Topics />} />
+              <Route path="/tests" element={<Tests />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/pricing" element={<Pricing />} />
               <Route path="/payment-callback" element={<PaymentCallback />} />
               <Route path="/mcq-practice" element={<MCQPractice />} />
+              <Route path="/admin" element={<Admin />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
