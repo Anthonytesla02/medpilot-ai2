@@ -15,7 +15,9 @@ import {
   Sun,
   Crown,
   CheckCircle,
-  ClipboardList
+  ClipboardList,
+  Trophy,
+  Settings
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -25,6 +27,7 @@ import { BottomNav } from '@/components/BottomNav';
 import { PageLoader } from '@/components/PageLoader';
 import { UpgradeModal } from '@/components/UpgradeModal';
 import { useAuth } from '@/hooks/useAuth';
+import { useAdmin } from '@/hooks/useAdmin';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -39,8 +42,10 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [testStats, setTestStats] = useState({ testsCompleted: 0, averageScore: 0, bestScore: 0 });
   const { theme, setTheme } = useTheme();
   const { user, signOut, loading: authLoading } = useAuth();
+  const { isAdmin, loading: adminLoading } = useAdmin();
   const { subscription, usage, limits, loading: subLoading } = useSubscription();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -54,6 +59,7 @@ export default function ProfilePage() {
   useEffect(() => {
     if (user) {
       fetchProfile();
+      fetchTestStats();
     }
   }, [user]);
 
@@ -68,6 +74,22 @@ export default function ProfilePage() {
       setProfile(data);
     }
     setLoading(false);
+  };
+
+  const fetchTestStats = async () => {
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from('test_results')
+      .select('score, total_questions, percentage')
+      .eq('user_id', user.id);
+
+    if (!error && data && data.length > 0) {
+      const testsCompleted = data.length;
+      const averageScore = data.reduce((acc, r) => acc + r.percentage, 0) / data.length;
+      const bestScore = Math.max(...data.map(r => r.percentage));
+      setTestStats({ testsCompleted, averageScore, bestScore });
+    }
   };
 
   const handleSignOut = async () => {
@@ -85,7 +107,7 @@ export default function ProfilePage() {
     { icon: HelpCircle, label: 'Help & Support', description: 'Get assistance' },
   ];
 
-  if (authLoading || loading || subLoading) {
+  if (authLoading || loading || subLoading || adminLoading) {
     return <PageLoader />;
   }
 
@@ -195,32 +217,54 @@ export default function ProfilePage() {
         )}
       </motion.div>
 
-      {/* Stats */}
+      {/* Test Stats */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
         className="px-4 py-2"
       >
-        <div className="grid grid-cols-2 gap-3">
-          <div className="p-4 rounded-xl bg-card border border-border/50">
-            <div className="flex items-center gap-2 text-primary mb-1">
-              <Stethoscope className="w-4 h-4" />
-              <span className="text-xs font-medium">Knowledge Base</span>
-            </div>
-            <p className="text-2xl font-bold">15+</p>
-            <p className="text-xs text-muted-foreground">Medical Topics</p>
+        <h2 className="text-sm font-medium text-muted-foreground mb-3 px-1">Test Performance</h2>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="p-4 rounded-xl bg-card border border-border/50 text-center">
+            <Trophy className="w-5 h-5 text-primary mx-auto mb-1" />
+            <p className="text-2xl font-bold">{testStats.testsCompleted}</p>
+            <p className="text-xs text-muted-foreground">Tests Done</p>
           </div>
-          <div className="p-4 rounded-xl bg-card border border-border/50">
-            <div className="flex items-center gap-2 text-primary mb-1">
-              <BookOpen className="w-4 h-4" />
-              <span className="text-xs font-medium">Source</span>
-            </div>
-            <p className="text-2xl font-bold">2017</p>
-            <p className="text-xs text-muted-foreground">Ghana STG Edition</p>
+          <div className="p-4 rounded-xl bg-card border border-border/50 text-center">
+            <ClipboardList className="w-5 h-5 text-primary mx-auto mb-1" />
+            <p className="text-2xl font-bold">{testStats.averageScore.toFixed(0)}%</p>
+            <p className="text-xs text-muted-foreground">Avg Score</p>
+          </div>
+          <div className="p-4 rounded-xl bg-card border border-border/50 text-center">
+            <CheckCircle className="w-5 h-5 text-green-500 mx-auto mb-1" />
+            <p className="text-2xl font-bold">{testStats.bestScore.toFixed(0)}%</p>
+            <p className="text-xs text-muted-foreground">Best Score</p>
           </div>
         </div>
       </motion.div>
+
+      {/* Admin Access */}
+      {isAdmin && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+          className="px-4 py-2"
+        >
+          <motion.button
+            onClick={() => navigate('/admin')}
+            className="w-full p-4 rounded-xl bg-primary/10 border border-primary/30 flex items-center gap-3 hover:bg-primary/20 transition-colors"
+          >
+            <Settings className="w-5 h-5 text-primary" />
+            <div className="flex-1 text-left">
+              <p className="font-medium text-primary">Admin Panel</p>
+              <p className="text-xs text-muted-foreground">Manage tests and users</p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-primary" />
+          </motion.button>
+        </motion.div>
+      )}
 
       {/* Settings */}
       <div className="px-4 py-4 space-y-4">
@@ -255,13 +299,13 @@ export default function ProfilePage() {
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.4 }}
-            onClick={() => navigate('/mcq-practice')}
+            onClick={() => navigate('/tests')}
             className="w-full p-4 rounded-xl bg-card border border-border/50 flex items-center gap-3 hover:border-primary/30 transition-colors"
           >
             <ClipboardList className="w-5 h-5 text-primary" />
             <div className="flex-1 text-left">
-              <p className="font-medium">MCQ Practice</p>
-              <p className="text-xs text-muted-foreground">Test your pharmacy knowledge</p>
+              <p className="font-medium">Practice Tests</p>
+              <p className="text-xs text-muted-foreground">Take MCQ tests and track your progress</p>
             </div>
             <ChevronRight className="w-5 h-5 text-muted-foreground" />
           </motion.button>
