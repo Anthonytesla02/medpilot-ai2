@@ -14,10 +14,8 @@ export function parseMarkdownQuestions(markdown: string): ParsedQuestion[] {
   let normalized = markdown
     // Remove blockquote markers
     .replace(/^>\s*/gm, '')
-    // Remove escaped backslashes before parentheses/periods: 1\) -> 1)
-    .replace(/(\d+)\\([.)]/g, '$1$2')
-    // Remove escaped backslashes before letters: a\) -> a)
-    .replace(/([a-dA-D])\\([.)]/g, '$1$2')
+    // Remove escaped backslashes (e.g., 1\) -> 1) and a\) -> a))
+    .replace(/\\/g, '')
     // Normalize bold/underline markdown
     .replace(/\*\*<u>|<\/u>\*\*/g, '')
     .replace(/\*\*/g, '')
