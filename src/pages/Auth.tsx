@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Stethoscope, Mail, Lock, Eye, EyeOff, ArrowRight, Sparkles } from 'lucide-react';
+import { Stethoscope, Mail, Lock, Eye, EyeOff, ArrowRight, Sparkles, GraduationCap, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,6 +9,30 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
+type UserRole = 'admin' | 'teacher' | 'worker_intern' | 'student';
+
+const SCHOOLS = [
+  'Origin College',
+  'Pharma Trust',
+  'Senes College',
+  'Ghana Health Service Training School',
+  'Other',
+] as const;
+
+const ROLE_LABELS: Record<UserRole, string> = {
+  admin: 'Admin',
+  teacher: 'Teacher',
+  worker_intern: 'Worker/Intern',
+  student: 'Student',
+};
 
 const authSchema = z.object({
   email: z.string()
@@ -31,12 +55,33 @@ export default function Auth() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [selectedRole, setSelectedRole] = useState<UserRole | ''>('');
+  const [selectedSchool, setSelectedSchool] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [adminExists, setAdminExists] = useState(false);
+  const [checkingAdmin, setCheckingAdmin] = useState(true);
   const { toast } = useToast();
   const { signIn, signUp, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+
+  // Check if admin already exists
+  useEffect(() => {
+    const checkAdminExists = async () => {
+      try {
+        const { data, error } = await supabase.rpc('admin_exists');
+        if (!error) {
+          setAdminExists(data as boolean);
+        }
+      } catch (err) {
+        console.error('Error checking admin status:', err);
+      } finally {
+        setCheckingAdmin(false);
+      }
+    };
+    checkAdminExists();
+  }, []);
 
   useEffect(() => {
     if (user && !authLoading) {
@@ -71,6 +116,33 @@ export default function Auth() {
       return;
     }
 
+    if (isSignUp && !selectedRole) {
+      toast({
+        title: "Validation Error",
+        description: "Please select your role",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (isSignUp && selectedRole !== 'admin' && !selectedSchool) {
+      toast({
+        title: "Validation Error",
+        description: "Please select your school",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (isSignUp && selectedRole === 'admin' && adminExists) {
+      toast({
+        title: "Registration Error",
+        description: "An admin account already exists",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
     
     try {
@@ -84,6 +156,8 @@ export default function Auth() {
             emailRedirectTo: redirectUrl,
             data: {
               full_name: fullName,
+              role: selectedRole,
+              school: selectedRole !== 'admin' ? selectedSchool : null,
             }
           }
         });
@@ -99,6 +173,30 @@ export default function Auth() {
             throw error;
           }
         } else if (data.user) {
+          // Update the user's role in user_roles table
+          if (selectedRole) {
+            const { error: roleError } = await supabase
+              .from('user_roles')
+              .update({ role: selectedRole as 'admin' | 'teacher' | 'worker_intern' | 'student' })
+              .eq('user_id', data.user.id);
+
+            if (roleError) {
+              console.error("Error updating user role:", roleError);
+            }
+          }
+
+          // Update school in profiles if not admin
+          if (selectedRole !== 'admin' && selectedSchool) {
+            const { error: profileError } = await supabase
+              .from('profiles')
+              .update({ school: selectedSchool })
+              .eq('user_id', data.user.id);
+
+            if (profileError) {
+              console.error("Error updating profile school:", profileError);
+            }
+          }
+
           // Send custom verification email via Resend
           try {
             const { error: emailError } = await supabase.functions.invoke('send-verification-email', {
@@ -275,33 +373,89 @@ export default function Auth() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {isSignUp && (
-              <div className="space-y-2">
-                <Label htmlFor="fullName">Full Name</Label>
-                <div className="relative">
-                  <svg 
-                    className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground"
-                    xmlns="http://www.w3.org/2000/svg" 
-                    viewBox="0 0 24 24" 
-                    fill="none" 
-                    stroke="currentColor" 
-                    strokeWidth="2" 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round"
-                  >
-                    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/>
-                    <circle cx="12" cy="7" r="4"/>
-                  </svg>
-                  <Input
-                    id="fullName"
-                    type="text"
-                    placeholder="Dr. John Mensah"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="pl-10 h-12 rounded-xl"
-                    required={isSignUp}
-                  />
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="fullName">Full Name</Label>
+                  <div className="relative">
+                    <svg 
+                      className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground"
+                      xmlns="http://www.w3.org/2000/svg" 
+                      viewBox="0 0 24 24" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      strokeWidth="2" 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round"
+                    >
+                      <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/>
+                      <circle cx="12" cy="7" r="4"/>
+                    </svg>
+                    <Input
+                      id="fullName"
+                      type="text"
+                      placeholder="Dr. John Mensah"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      className="pl-10 h-12 rounded-xl"
+                      required={isSignUp}
+                    />
+                  </div>
                 </div>
-              </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="role">I am a</Label>
+                  <Select 
+                    value={selectedRole} 
+                    onValueChange={(value: UserRole) => {
+                      setSelectedRole(value);
+                      if (value === 'admin') {
+                        setSelectedSchool('');
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-12 rounded-xl">
+                      <div className="flex items-center gap-2">
+                        <GraduationCap className="w-4 h-4 text-muted-foreground" />
+                        <SelectValue placeholder="Select your role" />
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {!adminExists && (
+                        <SelectItem value="admin">{ROLE_LABELS.admin}</SelectItem>
+                      )}
+                      <SelectItem value="teacher">{ROLE_LABELS.teacher}</SelectItem>
+                      <SelectItem value="worker_intern">{ROLE_LABELS.worker_intern}</SelectItem>
+                      <SelectItem value="student">{ROLE_LABELS.student}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {adminExists && selectedRole === '' && (
+                    <p className="text-xs text-muted-foreground">
+                      Admin role is not available (already registered)
+                    </p>
+                  )}
+                </div>
+
+                {selectedRole && selectedRole !== 'admin' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="school">School</Label>
+                    <Select value={selectedSchool} onValueChange={setSelectedSchool}>
+                      <SelectTrigger className="h-12 rounded-xl">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="w-4 h-4 text-muted-foreground" />
+                          <SelectValue placeholder="Select your school" />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SCHOOLS.map((school) => (
+                          <SelectItem key={school} value={school}>
+                            {school}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </>
             )}
 
             <div className="space-y-2">

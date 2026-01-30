@@ -146,6 +146,7 @@ export type Database = {
           display_name: string | null
           email: string | null
           id: string
+          school: string | null
           updated_at: string
           user_id: string
         }
@@ -155,6 +156,7 @@ export type Database = {
           display_name?: string | null
           email?: string | null
           id?: string
+          school?: string | null
           updated_at?: string
           user_id: string
         }
@@ -164,6 +166,7 @@ export type Database = {
           display_name?: string | null
           email?: string | null
           id?: string
+          school?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -344,6 +347,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_exists: { Args: never; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -353,7 +357,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "user"
+      app_role: "admin" | "user" | "teacher" | "worker_intern" | "student"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -481,7 +485,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "user"],
+      app_role: ["admin", "user", "teacher", "worker_intern", "student"],
     },
   },
 } as const
