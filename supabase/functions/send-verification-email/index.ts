@@ -33,7 +33,15 @@ serve(async (req: Request): Promise<Response> => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    const origin = req.headers.get("origin") || "https://id-preview--10b6e68e-0c0c-47c3-9290-f6b83630d876.lovable.app";
+    const originHeader = req.headers.get("origin");
+    const refererHeader = req.headers.get("referer");
+    const origin = originHeader ?? (refererHeader ? new URL(refererHeader).origin : null);
+
+    if (!origin) {
+      throw new Error(
+        "Missing Origin/Referer header. Provide a redirect URL from the client when invoking this function."
+      );
+    }
 
     // Generate email verification OTP link
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
@@ -115,8 +123,25 @@ serve(async (req: Request): Promise<Response> => {
     const emailResult = await emailResponse.json();
 
     if (!emailResponse.ok) {
+      // Common case on Resend free/testing mode: only allowed to email the account owner.
+      const message =
+        (emailResult && typeof emailResult === "object" && "message" in emailResult
+          ? String((emailResult as any).message)
+          : "Failed to send email");
+
       console.error("Resend API error:", emailResult);
-      throw new Error(emailResult.message || "Failed to send email");
+
+      return new Response(
+        JSON.stringify({
+          error: message,
+          provider: "resend",
+          status: emailResponse.status,
+        }),
+        {
+          status: emailResponse.status,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
     }
 
     console.log("Verification email sent successfully:", emailResult);
