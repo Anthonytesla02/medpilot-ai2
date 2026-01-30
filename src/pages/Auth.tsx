@@ -75,6 +75,7 @@ export default function Auth() {
     
     try {
       if (isSignUp) {
+        // First create the user account
         const redirectUrl = `${window.location.origin}/`;
         const { data, error } = await supabase.auth.signUp({
           email,
@@ -97,18 +98,24 @@ export default function Auth() {
           } else {
             throw error;
           }
-        } else if (data.user && !data.session) {
-          // Email confirmation required
+        } else if (data.user) {
+          // Send custom verification email via Resend
+          try {
+            const { error: emailError } = await supabase.functions.invoke('send-verification-email', {
+              body: { email, fullName, userId: data.user.id }
+            });
+            
+            if (emailError) {
+              console.error("Error sending verification email:", emailError);
+            }
+          } catch (emailErr) {
+            console.error("Failed to send custom verification email:", emailErr);
+          }
+          
           toast({
             title: "Check Your Email",
-            description: "We've sent you a verification link. Please check your email to confirm your account.",
+            description: "We've sent you a verification link. Please check your email (including spam folder) to confirm your account.",
           });
-        } else {
-          toast({
-            title: "Account Created!",
-            description: "Welcome to MediGuide AI. You can now start chatting.",
-          });
-          navigate('/chat');
         }
       } else {
         const { error } = await signIn(email, password);
