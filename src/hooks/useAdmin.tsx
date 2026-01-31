@@ -15,16 +15,6 @@ export function useAdmin() {
     }
 
     const checkAdminRole = async () => {
-      setLoading(true);
-
-      // Ensure the user's role/profile are created and consistent with signup metadata.
-      // This is required because email-based signups may not have a session during signup.
-      const { error: bootstrapError } = await supabase.functions.invoke('bootstrap-user');
-      if (bootstrapError) {
-        // Non-fatal: we'll still try to check the role table.
-        console.warn('bootstrap-user failed:', bootstrapError);
-      }
-
       const { data, error } = await supabase
         .from('user_roles')
         .select('role')
