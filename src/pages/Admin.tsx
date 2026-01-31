@@ -11,7 +11,8 @@ import {
   Trash2,
   Eye,
   ToggleLeft,
-  ToggleRight
+  ToggleRight,
+  BookOpen
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,6 +37,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { PageLoader } from '@/components/PageLoader';
+import { ModuleManager } from '@/components/admin/ModuleManager';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdmin } from '@/hooks/useAdmin';
 import { supabase } from '@/integrations/supabase/client';
@@ -334,6 +336,7 @@ export default function AdminPage() {
         <Tabs defaultValue="tests">
           <TabsList className="w-full">
             <TabsTrigger value="tests" className="flex-1">Tests</TabsTrigger>
+            <TabsTrigger value="modules" className="flex-1">Modules</TabsTrigger>
             <TabsTrigger value="users" className="flex-1">Users</TabsTrigger>
           </TabsList>
 
@@ -468,6 +471,10 @@ export default function AdminPage() {
                 </TableBody>
               </Table>
             </div>
+          </TabsContent>
+
+          <TabsContent value="modules" className="mt-4">
+            <ModuleManager />
           </TabsContent>
 
           <TabsContent value="users" className="mt-4">
