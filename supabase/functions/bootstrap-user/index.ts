@@ -65,9 +65,28 @@ Deno.serve(async (req) => {
     const fullName = typeof meta.full_name === 'string' ? meta.full_name.trim() : '';
     const requestedSchool = typeof meta.school === 'string' ? meta.school.trim() : '';
 
-    // Enforce single-admin policy: only allow setting admin when no admin exists.
+    // IMPORTANT: We need a stable single-admin policy.
+    // The previous logic flipped an admin back to 'user' whenever *any* admin existed,
+    // which caused roles to oscillate between admin/user across page loads.
+    //
+    // New behavior:
+    // - If the user is already an admin in the database, keep them admin.
+    // - Otherwise, only allow requesting admin when no admin exists.
     let finalRole: AppRole = requestedRole;
-    if (finalRole === 'admin') {
+
+    const { data: userAlreadyAdmin, error: userAlreadyAdminError } = await supabase
+      .from('user_roles')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('role', 'admin')
+      .limit(1)
+      .maybeSingle();
+
+    if (userAlreadyAdminError) throw userAlreadyAdminError;
+
+    if (userAlreadyAdmin) {
+      finalRole = 'admin';
+    } else if (finalRole === 'admin') {
       const { data: adminExists, error: adminExistsError } = await supabase.rpc('admin_exists');
       if (adminExistsError) throw adminExistsError;
       if (adminExists) finalRole = 'user';
