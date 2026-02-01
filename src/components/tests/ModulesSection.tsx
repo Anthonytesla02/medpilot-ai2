@@ -6,10 +6,13 @@ import {
   ChevronRight, 
   CheckCircle2,
   Circle,
-  Lock
+  Lock,
+  Trophy
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -29,9 +32,17 @@ interface Topic {
   completed_count: number;
 }
 
+interface ModuleQuizResult {
+  module_id: string;
+  passed: boolean;
+  percentage: number;
+}
+
 export function ModulesSection() {
   const [modules, setModules] = useState<Module[]>([]);
   const [topics, setTopics] = useState<Map<string, Topic[]>>(new Map());
+  const [quizResults, setQuizResults] = useState<Map<string, ModuleQuizResult>>(new Map());
+  const [moduleHasQuestions, setModuleHasQuestions] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [expandedModule, setExpandedModule] = useState<string | null>(null);
   const { user } = useAuth();
@@ -53,6 +64,28 @@ export function ModulesSection() {
       if (modulesError) throw modulesError;
 
       setModules(modulesData || []);
+
+      // Check which modules have questions
+      const { data: questionsData } = await supabase
+        .from('module_questions')
+        .select('module_id');
+
+      const hasQuestions = new Set((questionsData || []).map(q => q.module_id));
+      setModuleHasQuestions(hasQuestions);
+
+      // Fetch user quiz results
+      if (user) {
+        const { data: resultsData } = await supabase
+          .from('module_quiz_results')
+          .select('module_id, passed, percentage')
+          .eq('user_id', user.id);
+
+        const resultsMap = new Map<string, ModuleQuizResult>();
+        (resultsData || []).forEach(r => {
+          resultsMap.set(r.module_id, r);
+        });
+        setQuizResults(resultsMap);
+      }
 
       // Fetch topics with subtopic counts and progress
       if (modulesData && modulesData.length > 0) {
@@ -77,7 +110,7 @@ export function ModulesSection() {
           const topicsWithProgress: Topic[] = [];
 
           for (const topic of topicsData || []) {
-            const subtopicIds = (topic.course_subtopics as any[])?.map(s => s.id) || [];
+            const subtopicIds = (topic.course_subtopics as { id: string }[])?.map(s => s.id) || [];
             let completedCount = 0;
 
             if (user && subtopicIds.length > 0) {
@@ -106,8 +139,11 @@ export function ModulesSection() {
 
         setTopics(topicsMap);
         
-        // Auto-expand first module
-        if (modulesData.length > 0) {
+        // Auto-expand first unlocked module
+        const firstUnlocked = modulesData.find((m, idx) => isModuleUnlocked(m.id, idx, modulesData));
+        if (firstUnlocked) {
+          setExpandedModule(firstUnlocked.id);
+        } else if (modulesData.length > 0) {
           setExpandedModule(modulesData[0].id);
         }
       }
@@ -118,6 +154,22 @@ export function ModulesSection() {
     }
   };
 
+  const isModuleUnlocked = (moduleId: string, moduleIndex: number, modulesList: Module[] = modules): boolean => {
+    // First module is always unlocked
+    if (moduleIndex === 0) return true;
+
+    // Check if previous module's quiz was passed
+    const prevModule = modulesList[moduleIndex - 1];
+    if (!prevModule) return true;
+
+    // If previous module has no questions, it's unlocked
+    if (!moduleHasQuestions.has(prevModule.id)) return true;
+
+    // Check if user passed the previous module's quiz
+    const prevResult = quizResults.get(prevModule.id);
+    return prevResult?.passed === true;
+  };
+
   const getModuleProgress = (moduleId: string) => {
     const moduleTopics = topics.get(moduleId) || [];
     const totalSubtopics = moduleTopics.reduce((sum, t) => sum + t.subtopics_count, 0);
@@ -125,8 +177,13 @@ export function ModulesSection() {
     return totalSubtopics > 0 ? (completedSubtopics / totalSubtopics) * 100 : 0;
   };
 
-  const handleTopicClick = (topicId: string) => {
+  const handleTopicClick = (topicId: string, moduleId: string, moduleIndex: number) => {
+    if (!isModuleUnlocked(moduleId, moduleIndex)) return;
     navigate('/module-viewer', { state: { topicId } });
+  };
+
+  const handleTakeQuiz = (moduleId: string) => {
+    navigate('/module-quiz', { state: { moduleId } });
   };
 
   if (loading) {
@@ -162,6 +219,9 @@ export function ModulesSection() {
         const moduleTopics = topics.get(module.id) || [];
         const progress = getModuleProgress(module.id);
         const isExpanded = expandedModule === module.id;
+        const isUnlocked = isModuleUnlocked(module.id, index);
+        const quizResult = quizResults.get(module.id);
+        const hasQuiz = moduleHasQuestions.has(module.id);
 
         return (
           <motion.div
@@ -170,20 +230,44 @@ export function ModulesSection() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1 }}
           >
-            <Card className="overflow-hidden">
+            <Card className={`overflow-hidden ${!isUnlocked ? 'opacity-75' : ''}`}>
               <CardContent className="pt-4 pb-2">
                 {/* Module Header */}
                 <div 
-                  className="cursor-pointer"
-                  onClick={() => setExpandedModule(isExpanded ? null : module.id)}
+                  className={`${isUnlocked ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+                  onClick={() => isUnlocked && setExpandedModule(isExpanded ? null : module.id)}
                 >
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <BookOpen className="w-5 h-5 text-primary" />
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                        !isUnlocked 
+                          ? 'bg-muted' 
+                          : quizResult?.passed 
+                          ? 'bg-primary/10' 
+                          : 'bg-primary/10'
+                      }`}>
+                        {!isUnlocked ? (
+                          <Lock className="w-5 h-5 text-muted-foreground" />
+                        ) : quizResult?.passed ? (
+                          <Trophy className="w-5 h-5 text-primary" />
+                        ) : (
+                          <BookOpen className="w-5 h-5 text-primary" />
+                        )}
                       </div>
                       <div className="flex-1">
-                        <h3 className="font-semibold text-sm">{module.title}</h3>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-semibold text-sm">{module.title}</h3>
+                          {!isUnlocked && (
+                            <Badge variant="secondary" className="text-xs">
+                              Locked
+                            </Badge>
+                          )}
+                          {quizResult?.passed && (
+                            <Badge variant="default" className="text-xs">
+                              Completed
+                            </Badge>
+                          )}
+                        </div>
                         {module.description && (
                           <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
                             {module.description}
@@ -200,15 +284,15 @@ export function ModulesSection() {
                   
                   {/* Progress Bar */}
                   <div className="flex items-center gap-2 mt-3">
-                    <Progress value={progress} className="h-2 flex-1" />
+                    <Progress value={isUnlocked ? progress : 0} className="h-2 flex-1" />
                     <span className="text-xs text-muted-foreground min-w-[3rem] text-right">
-                      {progress.toFixed(0)}%
+                      {isUnlocked ? `${progress.toFixed(0)}%` : '—'}
                     </span>
                   </div>
                 </div>
 
                 {/* Topics List */}
-                {isExpanded && (
+                {isExpanded && isUnlocked && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
@@ -226,10 +310,10 @@ export function ModulesSection() {
                           animate={{ opacity: 1, x: 0 }}
                           transition={{ delay: topicIndex * 0.05 }}
                           className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
-                          onClick={() => handleTopicClick(topic.id)}
+                          onClick={() => handleTopicClick(topic.id, module.id, index)}
                         >
                           {isCompleted ? (
-                            <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />
+                            <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
                           ) : isStarted ? (
                             <Circle className="w-5 h-5 text-primary shrink-0" />
                           ) : (
@@ -249,6 +333,53 @@ export function ModulesSection() {
                         </motion.div>
                       );
                     })}
+
+                    {/* Quiz Button */}
+                    {hasQuiz && (
+                      <div className="pt-3 border-t mt-3">
+                        <Button
+                          variant={quizResult?.passed ? 'outline' : 'default'}
+                          className="w-full"
+                          onClick={() => handleTakeQuiz(module.id)}
+                        >
+                          {quizResult?.passed ? (
+                            <>
+                              <Trophy className="w-4 h-4 mr-2" />
+                              Retake Quiz ({quizResult.percentage.toFixed(0)}%)
+                            </>
+                          ) : quizResult ? (
+                            <>
+                              <CheckCircle2 className="w-4 h-4 mr-2" />
+                              Retry Quiz ({quizResult.percentage.toFixed(0)}%)
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 className="w-4 h-4 mr-2" />
+                              Take Module Quiz
+                            </>
+                          )}
+                        </Button>
+                        {!quizResult?.passed && hasQuiz && index < modules.length - 1 && (
+                          <p className="text-xs text-muted-foreground text-center mt-2">
+                            Pass with 70% to unlock the next module
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+
+                {/* Locked Message */}
+                {isExpanded && !isUnlocked && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="mt-4 p-4 bg-muted/50 rounded-lg text-center"
+                  >
+                    <Lock className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">
+                      Complete the previous module's quiz to unlock this content
+                    </p>
                   </motion.div>
                 )}
               </CardContent>

@@ -9,10 +9,16 @@ verify_jwt = false
 [functions.generate-case-study]
 verify_jwt = false
 
+[functions.generate-module-questions]
+verify_jwt = false
+
 [functions.grade-case-study]
 verify_jwt = false
 
 [functions.increment-usage]
+verify_jwt = false
+
+[functions.parse-module]
 verify_jwt = false
 
 [functions.paystack-initialize]
@@ -25,7 +31,4 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.send-verification-email]
-verify_jwt = false
-
-[functions.parse-module]
 verify_jwt = false

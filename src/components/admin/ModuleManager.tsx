@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Upload, Trash2, ChevronDown, ChevronRight, BookOpen, Loader2 } from 'lucide-react';
+import { Plus, Upload, Trash2, BookOpen, Loader2, ChevronUp, ChevronDown, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -43,6 +43,8 @@ interface Module {
   is_active: boolean;
   created_at: string;
   topics: Topic[];
+  has_questions: boolean;
+  questions_count: number;
 }
 
 export function ModuleManager() {
@@ -52,6 +54,8 @@ export function ModuleManager() {
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [moduleTitle, setModuleTitle] = useState('');
+  const [generatingQuestions, setGeneratingQuestions] = useState<string | null>(null);
+  const [reordering, setReordering] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -72,6 +76,17 @@ export function ModuleManager() {
       setLoading(false);
       return;
     }
+
+    // Fetch module questions to check which modules have them
+    const { data: questionsData } = await supabase
+      .from('module_questions')
+      .select('module_id, questions');
+
+    const questionsMap = new Map<string, number>();
+    (questionsData || []).forEach(q => {
+      const questions = Array.isArray(q.questions) ? q.questions : [];
+      questionsMap.set(q.module_id, questions.length);
+    });
 
     // Fetch topics for each module
     const modulesWithTopics: Module[] = [];
@@ -101,6 +116,8 @@ export function ModuleManager() {
       modulesWithTopics.push({
         ...mod,
         topics: topicsWithSubtopics,
+        has_questions: questionsMap.has(mod.id),
+        questions_count: questionsMap.get(mod.id) || 0,
       });
     }
 
@@ -176,12 +193,12 @@ export function ModuleManager() {
       setModuleTitle('');
       setShowUploadDialog(false);
       fetchModules();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Upload error:', error);
       toast({
         variant: 'destructive',
         title: 'Upload failed',
-        description: error.message || 'Failed to upload module.',
+        description: error instanceof Error ? error.message : 'Failed to upload module.',
       });
     } finally {
       setUploading(false);
@@ -194,26 +211,7 @@ export function ModuleManager() {
     }
 
     try {
-      // Delete in order: subtopics -> topics -> module
-      const { data: topics } = await supabase
-        .from('course_topics')
-        .select('id')
-        .eq('module_id', moduleId);
-
-      if (topics) {
-        for (const topic of topics) {
-          await supabase
-            .from('course_subtopics')
-            .delete()
-            .eq('topic_id', topic.id);
-        }
-      }
-
-      await supabase
-        .from('course_topics')
-        .delete()
-        .eq('module_id', moduleId);
-
+      // Delete in order: subtopics -> topics -> module (cascades handle most)
       const { error } = await supabase
         .from('course_modules')
         .delete()
@@ -223,11 +221,11 @@ export function ModuleManager() {
 
       toast({ title: 'Module deleted' });
       fetchModules();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         variant: 'destructive',
         title: 'Delete failed',
-        description: error.message,
+        description: error instanceof Error ? error.message : 'Failed to delete module.',
       });
     }
   };
@@ -243,6 +241,91 @@ export function ModuleManager() {
       toast({
         title: currentStatus ? 'Module hidden' : 'Module visible',
       });
+    }
+  };
+
+  const handleMoveModule = async (moduleId: string, direction: 'up' | 'down') => {
+    const currentIndex = modules.findIndex(m => m.id === moduleId);
+    if (currentIndex === -1) return;
+
+    const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (newIndex < 0 || newIndex >= modules.length) return;
+
+    setReordering(moduleId);
+
+    try {
+      const currentModule = modules[currentIndex];
+      const swapModule = modules[newIndex];
+
+      // Swap order_index values
+      await Promise.all([
+        supabase
+          .from('course_modules')
+          .update({ order_index: swapModule.order_index })
+          .eq('id', currentModule.id),
+        supabase
+          .from('course_modules')
+          .update({ order_index: currentModule.order_index })
+          .eq('id', swapModule.id),
+      ]);
+
+      await fetchModules();
+      toast({ title: `Module moved ${direction}` });
+    } catch (error) {
+      console.error('Reorder error:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Failed to reorder module',
+      });
+    } finally {
+      setReordering(null);
+    }
+  };
+
+  const handleGenerateQuestions = async (moduleId: string) => {
+    setGeneratingQuestions(moduleId);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error('Not authenticated');
+      }
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-module-questions`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ moduleId }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate questions');
+      }
+
+      const result = await response.json();
+
+      toast({
+        title: 'Questions generated!',
+        description: `Created ${result.questionsCount} MCQs for "${result.moduleTitle}".`,
+      });
+
+      fetchModules();
+    } catch (error: unknown) {
+      console.error('Generate questions error:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Generation failed',
+        description: error instanceof Error ? error.message : 'Failed to generate questions.',
+      });
+    } finally {
+      setGeneratingQuestions(null);
     }
   };
 
@@ -325,7 +408,7 @@ export function ModuleManager() {
         </Card>
       ) : (
         <Accordion type="multiple" className="space-y-2">
-          {modules.map((module) => (
+          {modules.map((module, index) => (
             <AccordionItem
               key={module.id}
               value={module.id}
@@ -333,13 +416,44 @@ export function ModuleManager() {
             >
               <AccordionTrigger className="hover:no-underline">
                 <div className="flex items-center gap-3 text-left">
+                  <div className="flex flex-col gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      disabled={index === 0 || reordering !== null}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleMoveModule(module.id, 'up');
+                      }}
+                    >
+                      <ChevronUp className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      disabled={index === modules.length - 1 || reordering !== null}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleMoveModule(module.id, 'down');
+                      }}
+                    >
+                      <ChevronDown className="w-4 h-4" />
+                    </Button>
+                  </div>
                   <BookOpen className="w-5 h-5 text-primary shrink-0" />
                   <div className="flex-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold">{module.title}</span>
                       <Badge variant={module.is_active ? 'default' : 'secondary'}>
                         {module.is_active ? 'Active' : 'Hidden'}
                       </Badge>
+                      {module.has_questions && (
+                        <Badge variant="outline" className="text-primary border-primary">
+                          {module.questions_count} MCQs
+                        </Badge>
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {module.topics.length} topics • {module.topics.reduce((acc, t) => acc + t.subtopics.length, 0)} subtopics
@@ -366,7 +480,25 @@ export function ModuleManager() {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex gap-2 pt-2 border-t">
+                  <div className="flex flex-wrap gap-2 pt-2 border-t">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleGenerateQuestions(module.id)}
+                      disabled={generatingQuestions === module.id}
+                    >
+                      {generatingQuestions === module.id ? (
+                        <>
+                          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-3 h-3 mr-1" />
+                          {module.has_questions ? 'Regenerate MCQs' : 'Generate MCQs'}
+                        </>
+                      )}
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
