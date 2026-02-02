@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Plus, Upload, Trash2, BookOpen, Loader2, ChevronUp, ChevronDown, Sparkles } from 'lucide-react';
+import { Plus, Upload, Trash2, BookOpen, Loader2, ChevronUp, ChevronDown, Sparkles, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -52,7 +54,9 @@ export function ModuleManager() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [uploadMode, setUploadMode] = useState<'paste' | 'file'>('paste');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [pastedContent, setPastedContent] = useState('');
   const [moduleTitle, setModuleTitle] = useState('');
   const [generatingQuestions, setGeneratingQuestions] = useState<string | null>(null);
   const [reordering, setReordering] = useState<string | null>(null);
@@ -139,7 +143,10 @@ export function ModuleManager() {
   };
 
   const handleUploadModule = async () => {
-    if (!uploadFile) {
+    const hasFile = !!uploadFile;
+    const hasPaste = pastedContent.trim().length > 0;
+
+    if (uploadMode === 'file' && !hasFile) {
       toast({
         variant: 'destructive',
         title: 'No file selected',
@@ -148,11 +155,22 @@ export function ModuleManager() {
       return;
     }
 
+    if (uploadMode === 'paste' && !hasPaste) {
+      toast({
+        variant: 'destructive',
+        title: 'No content provided',
+        description: 'Please paste the module content.',
+      });
+      return;
+    }
+
     setUploading(true);
 
     try {
-      // Read file content
-      const content = await uploadFile.text();
+      // Get content from file or pasted text
+      const content = uploadMode === 'paste' 
+        ? pastedContent 
+        : await uploadFile!.text();
 
       // Get the current session
       const { data: { session } } = await supabase.auth.getSession();
@@ -191,6 +209,7 @@ export function ModuleManager() {
 
       // Reset form and refresh
       setUploadFile(null);
+      setPastedContent('');
       setModuleTitle('');
       setShowUploadDialog(false);
       fetchModules();
@@ -345,17 +364,61 @@ export function ModuleManager() {
         <DialogTrigger asChild>
           <Button className="w-full">
             <Upload className="w-4 h-4 mr-2" />
-            Upload New Module
+            Add New Module
           </Button>
         </DialogTrigger>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Upload Course Module</DialogTitle>
+            <DialogTitle>Add Course Module</DialogTitle>
             <DialogDescription>
-              Upload a .txt or .md file containing the module content. AI will automatically parse and structure it into topics and subtopics.
+              Paste or upload module content. AI will automatically parse and structure it into topics and subtopics.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            <Tabs value={uploadMode} onValueChange={(v) => setUploadMode(v as 'paste' | 'file')}>
+              <TabsList className="w-full">
+                <TabsTrigger value="paste" className="flex-1">
+                  <FileText className="w-4 h-4 mr-2" />
+                  Paste Content
+                </TabsTrigger>
+                <TabsTrigger value="file" className="flex-1">
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload File
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="paste" className="mt-4 space-y-2">
+                <label className="text-sm font-medium">Module Content *</label>
+                <Textarea
+                  placeholder="Paste your module text or markdown content here..."
+                  value={pastedContent}
+                  onChange={(e) => setPastedContent(e.target.value)}
+                  className="min-h-[200px] resize-y"
+                />
+                {pastedContent.trim().length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {pastedContent.trim().length.toLocaleString()} characters
+                  </p>
+                )}
+              </TabsContent>
+
+              <TabsContent value="file" className="mt-4 space-y-2">
+                <label className="text-sm font-medium">Module File *</label>
+                <Input
+                  type="file"
+                  accept=".txt,.md"
+                  onChange={handleFileChange}
+                  onClick={(e) => e.stopPropagation()}
+                  className="mt-2"
+                />
+                {uploadFile && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Selected: {uploadFile.name} ({Math.round(uploadFile.size / 1024)} KB)
+                  </p>
+                )}
+              </TabsContent>
+            </Tabs>
+
             <div>
               <label className="text-sm font-medium">Module Title (optional)</label>
               <Input
@@ -364,24 +427,10 @@ export function ModuleManager() {
                 onChange={(e) => setModuleTitle(e.target.value)}
               />
             </div>
-            <div onClick={(e) => e.stopPropagation()}>
-              <label className="text-sm font-medium">Module File *</label>
-              <Input
-                type="file"
-                accept=".txt,.md"
-                onChange={handleFileChange}
-                onClick={(e) => e.stopPropagation()}
-                className="mt-2"
-              />
-              {uploadFile && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Selected: {uploadFile.name} ({Math.round(uploadFile.size / 1024)} KB)
-                </p>
-              )}
-            </div>
+
             <Button
               onClick={handleUploadModule}
-              disabled={uploading || !uploadFile}
+              disabled={uploading || (uploadMode === 'paste' ? pastedContent.trim().length === 0 : !uploadFile)}
               className="w-full"
             >
               {uploading ? (
@@ -391,8 +440,8 @@ export function ModuleManager() {
                 </>
               ) : (
                 <>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Upload & Parse Module
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Parse & Create Module
                 </>
               )}
             </Button>
