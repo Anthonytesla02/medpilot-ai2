@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { Plus, Upload, Trash2, BookOpen, Loader2, ChevronUp, ChevronDown, Sparkles, FileText } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Upload, Trash2, BookOpen, Loader2, ChevronUp, ChevronDown, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   Accordion,
@@ -51,12 +52,10 @@ export function ModuleManager() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
-  const [fileContent, setFileContent] = useState<string | null>(null);
-  const [fileName, setFileName] = useState<string | null>(null);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [moduleTitle, setModuleTitle] = useState('');
   const [generatingQuestions, setGeneratingQuestions] = useState<string | null>(null);
   const [reordering, setReordering] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -126,44 +125,20 @@ export function ModuleManager() {
     setLoading(false);
   };
 
-  const handleFileSelect = () => {
-    fileInputRef.current?.click();
-  };
-
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    
-    // Store filename
-    setFileName(file.name);
-    
-    // Extract module title from filename
-    const name = file.name.replace(/\.(txt|md)$/i, '').replace(/_/g, ' ');
-    setModuleTitle(name);
-    
-    // Read file content immediately
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      setFileContent(content);
-      // Show dialog after file is read
-      setShowUploadDialog(true);
-    };
-    reader.onerror = () => {
-      toast({
-        variant: 'destructive',
-        title: 'Failed to read file',
-        description: 'Please try again with a different file.',
-      });
-    };
-    reader.readAsText(file);
-    
-    // Reset input so same file can be selected again
-    e.target.value = '';
+    if (file) {
+      setUploadFile(file);
+      // Try to extract module title from filename
+      const name = file.name.replace(/\.(txt|md)$/i, '').replace(/_/g, ' ');
+      if (!moduleTitle) {
+        setModuleTitle(name);
+      }
+    }
   };
 
   const handleUploadModule = async () => {
-    if (!fileContent) {
+    if (!uploadFile) {
       toast({
         variant: 'destructive',
         title: 'No file selected',
@@ -175,9 +150,12 @@ export function ModuleManager() {
     setUploading(true);
 
     try {
+      // Read file content
+      const content = await uploadFile.text();
+
       // Get the current session
       const { data: { session } } = await supabase.auth.getSession();
-
+      
       if (!session) {
         throw new Error('Not authenticated');
       }
@@ -192,7 +170,7 @@ export function ModuleManager() {
             'Authorization': `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({
-            content: fileContent,
+            content,
             moduleTitle: moduleTitle || undefined,
           }),
         }
@@ -211,8 +189,7 @@ export function ModuleManager() {
       });
 
       // Reset form and refresh
-      setFileContent(null);
-      setFileName(null);
+      setUploadFile(null);
       setModuleTitle('');
       setShowUploadDialog(false);
       fetchModules();
@@ -362,45 +339,22 @@ export function ModuleManager() {
 
   return (
     <div className="space-y-4">
-      {/* Hidden file input - outside dialog to prevent mobile issues */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".txt,.md,text/plain,text/markdown"
-        onChange={handleFileChange}
-        className="hidden"
-        aria-hidden="true"
-      />
-
-      {/* Upload Button - triggers hidden file input */}
-      <Button className="w-full" onClick={handleFileSelect}>
-        <Upload className="w-4 h-4 mr-2" />
-        Upload New Module
-      </Button>
-
-      {/* Dialog shows after file is selected and read */}
-      <Dialog open={showUploadDialog} onOpenChange={(open) => {
-        setShowUploadDialog(open);
-        if (!open) {
-          setFileContent(null);
-          setFileName(null);
-          setModuleTitle('');
-        }
-      }}>
+      {/* Upload Button */}
+      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+        <DialogTrigger asChild>
+          <Button className="w-full">
+            <Upload className="w-4 h-4 mr-2" />
+            Upload New Module
+          </Button>
+        </DialogTrigger>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Upload Course Module</DialogTitle>
             <DialogDescription>
-              AI will automatically parse and structure the module content into topics and subtopics.
+              Upload a .txt or .md file containing the module content. AI will automatically parse and structure it into topics and subtopics.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {fileName && (
-              <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
-                <FileText className="w-5 h-5 text-primary" />
-                <span className="text-sm font-medium">{fileName}</span>
-              </div>
-            )}
             <div>
               <label className="text-sm font-medium">Module Title (optional)</label>
               <Input
@@ -409,10 +363,23 @@ export function ModuleManager() {
                 onChange={(e) => setModuleTitle(e.target.value)}
               />
             </div>
+            <div>
+              <label className="text-sm font-medium">Module File *</label>
+              <Input
+                type="file"
+                accept=".txt,.md"
+                onChange={handleFileChange}
+                className="mt-2"
+              />
+              {uploadFile && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Selected: {uploadFile.name} ({Math.round(uploadFile.size / 1024)} KB)
+                </p>
+              )}
+            </div>
             <Button
-              type="button"
               onClick={handleUploadModule}
-              disabled={uploading || !fileContent}
+              disabled={uploading || !uploadFile}
               className="w-full"
             >
               {uploading ? (
