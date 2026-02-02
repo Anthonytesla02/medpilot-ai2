@@ -549,7 +549,19 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      leaderboard_stats: {
+        Row: {
+          avatar_url: string | null
+          avg_quiz_score: number | null
+          avg_test_score: number | null
+          combined_score: number | null
+          display_name: string | null
+          modules_passed: number | null
+          tests_completed: number | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       admin_exists: { Args: never; Returns: boolean }
