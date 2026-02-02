@@ -126,6 +126,7 @@ export function ModuleManager() {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.stopPropagation();
     const file = e.target.files?.[0];
     if (file) {
       setUploadFile(file);
@@ -363,12 +364,13 @@ export function ModuleManager() {
                 onChange={(e) => setModuleTitle(e.target.value)}
               />
             </div>
-            <div>
+            <div onClick={(e) => e.stopPropagation()}>
               <label className="text-sm font-medium">Module File *</label>
               <Input
                 type="file"
                 accept=".txt,.md"
                 onChange={handleFileChange}
+                onClick={(e) => e.stopPropagation()}
                 className="mt-2"
               />
               {uploadFile && (
