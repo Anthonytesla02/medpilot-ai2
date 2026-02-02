@@ -17,15 +17,19 @@ import {
   CheckCircle,
   ClipboardList,
   Trophy,
-  Settings
+  Settings,
+  BarChart3
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BottomNav } from '@/components/BottomNav';
 import { PageLoader } from '@/components/PageLoader';
 import { UpgradeModal } from '@/components/UpgradeModal';
+import { UserAnalytics } from '@/components/profile/UserAnalytics';
+import { Leaderboard } from '@/components/profile/Leaderboard';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdmin } from '@/hooks/useAdmin';
 import { useSubscription } from '@/hooks/useSubscription';
@@ -217,31 +221,57 @@ export default function ProfilePage() {
         )}
       </motion.div>
 
-      {/* Test Stats */}
+      {/* Analytics & Leaderboard Tabs */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
         className="px-4 py-2"
       >
-        <h2 className="text-sm font-medium text-muted-foreground mb-3 px-1">Test Performance</h2>
-        <div className="grid grid-cols-3 gap-3">
-          <div className="p-4 rounded-xl bg-card border border-border/50 text-center">
-            <Trophy className="w-5 h-5 text-primary mx-auto mb-1" />
-            <p className="text-2xl font-bold">{testStats.testsCompleted}</p>
-            <p className="text-xs text-muted-foreground">Tests Done</p>
-          </div>
-          <div className="p-4 rounded-xl bg-card border border-border/50 text-center">
-            <ClipboardList className="w-5 h-5 text-primary mx-auto mb-1" />
-            <p className="text-2xl font-bold">{testStats.averageScore.toFixed(0)}%</p>
-            <p className="text-xs text-muted-foreground">Avg Score</p>
-          </div>
-          <div className="p-4 rounded-xl bg-card border border-border/50 text-center">
-            <CheckCircle className="w-5 h-5 text-green-500 mx-auto mb-1" />
-            <p className="text-2xl font-bold">{testStats.bestScore.toFixed(0)}%</p>
-            <p className="text-xs text-muted-foreground">Best Score</p>
-          </div>
-        </div>
+        <Tabs defaultValue="stats" className="w-full">
+          <TabsList className="grid w-full grid-cols-3 mb-4">
+            <TabsTrigger value="stats" className="text-xs">
+              <Trophy className="w-3 h-3 mr-1" />
+              Stats
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="text-xs">
+              <BarChart3 className="w-3 h-3 mr-1" />
+              Analytics
+            </TabsTrigger>
+            <TabsTrigger value="leaderboard" className="text-xs">
+              <Crown className="w-3 h-3 mr-1" />
+              Leaderboard
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="stats">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="p-4 rounded-xl bg-card border border-border/50 text-center">
+                <Trophy className="w-5 h-5 text-primary mx-auto mb-1" />
+                <p className="text-2xl font-bold">{testStats.testsCompleted}</p>
+                <p className="text-xs text-muted-foreground">Tests Done</p>
+              </div>
+              <div className="p-4 rounded-xl bg-card border border-border/50 text-center">
+                <ClipboardList className="w-5 h-5 text-primary mx-auto mb-1" />
+                <p className="text-2xl font-bold">{testStats.averageScore.toFixed(0)}%</p>
+                <p className="text-xs text-muted-foreground">Avg Score</p>
+              </div>
+              <div className="p-4 rounded-xl bg-card border border-border/50 text-center">
+                <CheckCircle className="w-5 h-5 text-green-500 mx-auto mb-1" />
+                <p className="text-2xl font-bold">{testStats.bestScore.toFixed(0)}%</p>
+                <p className="text-xs text-muted-foreground">Best Score</p>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="analytics">
+            {user && <UserAnalytics userId={user.id} />}
+          </TabsContent>
+
+          <TabsContent value="leaderboard">
+            <Leaderboard />
+          </TabsContent>
+        </Tabs>
       </motion.div>
 
       {/* Admin Access */}
