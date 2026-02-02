@@ -126,14 +126,22 @@ export function ModuleManager() {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
     const file = e.target.files?.[0];
     if (file) {
-      setUploadFile(file);
-      // Try to extract module title from filename
-      const name = file.name.replace(/\.(txt|md)$/i, '').replace(/_/g, ' ');
-      if (!moduleTitle) {
-        setModuleTitle(name);
-      }
+      // Read file immediately to prevent mobile browser issues
+      const reader = new FileReader();
+      reader.onload = () => {
+        setUploadFile(file);
+        // Try to extract module title from filename
+        const name = file.name.replace(/\.(txt|md)$/i, '').replace(/_/g, ' ');
+        if (!moduleTitle) {
+          setModuleTitle(name);
+        }
+      };
+      reader.readAsText(file);
     }
   };
 
@@ -354,7 +362,7 @@ export function ModuleManager() {
               Upload a .txt or .md file containing the module content. AI will automatically parse and structure it into topics and subtopics.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <form onSubmit={(e) => e.preventDefault()} className="space-y-4 py-4">
             <div>
               <label className="text-sm font-medium">Module Title (optional)</label>
               <Input
@@ -364,12 +372,13 @@ export function ModuleManager() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Module File *</label>
-              <Input
+              <label htmlFor="module-file-input" className="text-sm font-medium">Module File *</label>
+              <input
+                id="module-file-input"
                 type="file"
-                accept=".txt,.md"
+                accept=".txt,.md,text/plain,text/markdown"
                 onChange={handleFileChange}
-                className="mt-2"
+                className="mt-2 w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
               />
               {uploadFile && (
                 <p className="text-xs text-muted-foreground mt-1">
@@ -378,6 +387,7 @@ export function ModuleManager() {
               )}
             </div>
             <Button
+              type="button"
               onClick={handleUploadModule}
               disabled={uploading || !uploadFile}
               className="w-full"
@@ -394,7 +404,7 @@ export function ModuleManager() {
                 </>
               )}
             </Button>
-          </div>
+          </form>
         </DialogContent>
       </Dialog>
 
