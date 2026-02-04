@@ -10,8 +10,7 @@ import {
   AlertCircle,
   Sparkles,
   Trophy,
-  Target,
-  Crown
+  Target
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -21,12 +20,9 @@ import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { BottomNav } from '@/components/BottomNav';
 import { PageLoader } from '@/components/PageLoader';
-import { UpgradeModal } from '@/components/UpgradeModal';
 import { useAuth } from '@/hooks/useAuth';
-import { useSubscription } from '@/hooks/useSubscription';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-
 interface CaseStudyData {
   id: string;
   illness: string;
@@ -59,10 +55,8 @@ export default function CaseStudy() {
   const [grading, setGrading] = useState(false);
   const [casesCompleted, setCasesCompleted] = useState(0);
   const [totalScore, setTotalScore] = useState(0);
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   
   const { user, loading: authLoading } = useAuth();
-  const { limits, usage, loading: subLoading, incrementUsage } = useSubscription();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -73,26 +67,11 @@ export default function CaseStudy() {
   }, [user, authLoading, navigate]);
 
   const generateNewCase = async () => {
-    // Check if user can generate case studies
-    if (!limits?.canUseCaseStudy) {
-      setShowUpgradeModal(true);
-      return;
-    }
-
     setLoading(true);
     setCaseData(null);
     setGradeResult(null);
     setUserDiagnosis('');
     setUserTreatment('');
-
-    // Always deduct credits for case study generation
-    try {
-      await incrementUsage('case_study');
-    } catch (error) {
-      console.error('Failed to deduct credit:', error);
-      setLoading(false);
-      return;
-    }
 
     try {
       const response = await fetch(
@@ -191,14 +170,12 @@ export default function CaseStudy() {
     return 'text-red-500';
   };
 
-  if (authLoading || subLoading) {
+  if (authLoading) {
     return <PageLoader />;
   }
 
   return (
     <div className="min-h-screen flex flex-col bg-background pb-20">
-      <UpgradeModal open={showUpgradeModal} onOpenChange={setShowUpgradeModal} triggerType="case_study" />
-
       {/* Header */}
       <header className="sticky top-0 z-30 glass border-b border-border/50">
         <div className="px-4 py-4">
@@ -207,24 +184,12 @@ export default function CaseStudy() {
               <BookOpen className="w-5 h-5 text-primary" />
               Case Studies
             </h1>
-            <div className="flex items-center gap-2">
-              {usage && (
-                <Badge 
-                  variant="outline" 
-                  className="text-xs cursor-pointer hover:bg-primary/10 transition-colors"
-                  onClick={() => setShowUpgradeModal(true)}
-                >
-                  <Crown className="w-3 h-3 mr-1" />
-                  {usage.creditsRemaining} credits
-                </Badge>
-              )}
-              {casesCompleted > 0 && (
-                <Badge variant="outline" className="flex items-center gap-1">
-                  <Trophy className="w-3 h-3" />
-                  Avg: {Math.round(totalScore / casesCompleted)}%
-                </Badge>
-              )}
-            </div>
+            {casesCompleted > 0 && (
+              <Badge variant="outline" className="flex items-center gap-1">
+                <Trophy className="w-3 h-3" />
+                Avg: {Math.round(totalScore / casesCompleted)}%
+              </Badge>
+            )}
           </div>
           <p className="text-sm text-muted-foreground">
             Practice with AI-generated clinical scenarios from Ghana STG

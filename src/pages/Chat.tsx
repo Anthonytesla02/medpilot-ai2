@@ -1,16 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Stethoscope, Sparkles, Crown } from 'lucide-react';
+import { Stethoscope, Sparkles } from 'lucide-react';
 import { ChatMessage } from '@/components/ChatMessage';
 import { ChatInput } from '@/components/ChatInput';
 import { TypingIndicator } from '@/components/TypingIndicator';
 import { Sidebar } from '@/components/Sidebar';
 import { BottomNav } from '@/components/BottomNav';
 import { PageLoader } from '@/components/PageLoader';
-import { UpgradeModal } from '@/components/UpgradeModal';
 import { useAuth } from '@/hooks/useAuth';
-import { useSubscription } from '@/hooks/useSubscription';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -28,10 +26,8 @@ export default function Chat() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [knowledgeSeeded, setKnowledgeSeeded] = useState(false);
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { user, loading: authLoading } = useAuth();
-  const { limits, usage, loading: subLoading, incrementUsage } = useSubscription();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -91,12 +87,6 @@ export default function Chat() {
   const handleSend = async (content: string) => {
     if (!user) return;
 
-    // Check if user can send messages
-    if (!limits?.canUseChat) {
-      setShowUpgradeModal(true);
-      return;
-    }
-
     const userMessage: Message = {
       id: crypto.randomUUID(),
       role: 'user',
@@ -106,11 +96,6 @@ export default function Chat() {
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
     setIsStreaming(true);
-
-    // Increment usage for trial users
-    if (!limits?.isSubscribed) {
-      await incrementUsage('chat');
-    }
 
     let currentConvId = conversationId;
     
@@ -242,7 +227,7 @@ export default function Chat() {
     }
   };
 
-  if (authLoading || subLoading) {
+  if (authLoading) {
     return <PageLoader />;
   }
 
@@ -254,8 +239,6 @@ export default function Chat() {
         onNewConversation={handleNewConversation}
       />
 
-      <UpgradeModal open={showUpgradeModal} onOpenChange={setShowUpgradeModal} triggerType="chat" />
-
       {/* Header */}
       <header className="sticky top-0 z-30 glass border-b border-border/50">
         <div className="flex items-center justify-center gap-3 px-4 py-3 md:ml-16">
@@ -266,16 +249,6 @@ export default function Chat() {
             <h1 className="font-semibold text-sm gradient-text">MediGuide AI</h1>
             <p className="text-xs text-muted-foreground">Ghana STG Assistant</p>
           </div>
-          {usage && (
-            <Badge 
-              variant="outline" 
-              className="ml-2 text-xs cursor-pointer hover:bg-primary/10 transition-colors"
-              onClick={() => setShowUpgradeModal(true)}
-            >
-              <Crown className="w-3 h-3 mr-1" />
-              {usage.creditsRemaining} credits
-            </Badge>
-          )}
         </div>
       </header>
 
