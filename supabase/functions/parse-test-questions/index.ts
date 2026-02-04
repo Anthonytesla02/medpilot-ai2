@@ -89,11 +89,12 @@ IMPORTANT RULES:
      These questions list statements as I, II, III and the answer (A-E) indicates which combination is correct.
    - Standard format with a, b, c, d options
    
-2. For Roman numeral questions:
-   - Convert them to standard a, b, c, d format
-   - Map the answer key (A-E) to the correct answer (a-e) based on which combination it represents
-   - Create proper options like: a) I only, b) II only, c) III only, d) II and III only, e) I, II and III
-   - The question text should include all the Roman numeral statements as part of the question
+2. CRITICAL - For Roman numeral questions:
+   - The "question" field MUST include BOTH the main question text AND all the Roman numeral statements formatted clearly
+   - Format the question like this: "Main question text:\n\nI. First statement\nII. Second statement\nIII. Third statement"
+   - Convert the answer options to standard format: a) I only, b) II only, c) III only, d) II and III only, e) I, II and III
+   - Map the answer key (A-E) to the correct answer (a-e)
+   - DO NOT lose the main question text - it must appear before the Roman numeral statements
    
 3. Extract the correct answer if provided (often after "Answer:" in the text)
 4. If no answer is provided, set needsReview to true
@@ -106,7 +107,7 @@ Return a JSON object with this exact structure:
   "questions": [
     {
       "id": 1,
-      "question": "The full question text including any numbered statements (I, II, III) if present",
+      "question": "The full question text INCLUDING any numbered statements (I, II, III) on separate lines",
       "context": "Optional preamble or context for the question",
       "options": [
         { "letter": "a", "text": "First option" },
@@ -123,18 +124,19 @@ Return a JSON object with this exact structure:
   "needsReviewCount": 5
 }
 
-For Roman numeral questions, transform them like this:
-ORIGINAL:
+EXAMPLE TRANSFORMATION for Roman numeral questions:
+
+INPUT:
 "1. This description is restricted to pharmacy or pharmacist except
 I. Licensed chemical seller
 II. Dispensary
 III. Chemist
 Answer: A"
 
-TRANSFORMED:
+OUTPUT:
 {
   "id": 1,
-  "question": "This description is restricted to pharmacy or pharmacist except:\n\nI. Licensed chemical seller\nII. Dispensary\nIII. Chemist",
+  "question": "This description is restricted to pharmacy or pharmacist except:\\n\\nI. Licensed chemical seller\\nII. Dispensary\\nIII. Chemist",
   "options": [
     { "letter": "a", "text": "I only" },
     { "letter": "b", "text": "II only" },
@@ -143,9 +145,11 @@ TRANSFORMED:
     { "letter": "e", "text": "I, II and III" }
   ],
   "correctAnswer": "a",
-  "explanation": "Licensed chemical seller is restricted to pharmacy or pharmacist.",
+  "explanation": "Licensed chemical seller is not restricted to pharmacy or pharmacist.",
   "needsReview": false
-}`;
+}
+
+CRITICAL: The question field MUST contain the actual question text before the Roman numerals. Never output just "I only, II only" style options without the actual question text.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
