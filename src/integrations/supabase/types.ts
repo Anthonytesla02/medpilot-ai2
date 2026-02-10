@@ -135,6 +135,66 @@ export type Database = {
           },
         ]
       }
+      drug_brands: {
+        Row: {
+          active_ingredient: string
+          brand_name: string
+          category: string
+          created_at: string
+          created_by: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          active_ingredient: string
+          brand_name: string
+          category: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          active_ingredient?: string
+          brand_name?: string
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      drug_practice_results: {
+        Row: {
+          category: string
+          completed_at: string
+          id: string
+          percentage: number
+          score: number
+          total_questions: number
+          user_id: string
+        }
+        Insert: {
+          category: string
+          completed_at?: string
+          id?: string
+          percentage: number
+          score: number
+          total_questions: number
+          user_id: string
+        }
+        Update: {
+          category?: string
+          completed_at?: string
+          id?: string
+          percentage?: number
+          score?: number
+          total_questions?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       knowledge_chunks: {
         Row: {
           chapter: string | null

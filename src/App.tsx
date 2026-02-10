@@ -16,6 +16,7 @@ import PaymentCallback from "./pages/PaymentCallback";
 import MCQPractice from "./pages/MCQPractice";
 import ModuleViewer from "./pages/ModuleViewer";
 import ModuleQuiz from "./pages/ModuleQuiz";
+import DrugPractice from "./pages/DrugPractice";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
@@ -41,6 +42,7 @@ const App = () => (
               <Route path="/mcq-practice" element={<MCQPractice />} />
               <Route path="/module-viewer" element={<ModuleViewer />} />
               <Route path="/module-quiz" element={<ModuleQuiz />} />
+              <Route path="/drug-practice" element={<DrugPractice />} />
               <Route path="/admin" element={<Admin />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

@@ -20,6 +20,7 @@ import {
 import { PageLoader } from '@/components/PageLoader';
 import { ModuleManager } from '@/components/admin/ModuleManager';
 import { TestManager } from '@/components/admin/TestManager';
+import { DrugManager } from '@/components/admin/DrugManager';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdmin } from '@/hooks/useAdmin';
 import { supabase } from '@/integrations/supabase/client';
@@ -188,6 +189,7 @@ export default function AdminPage() {
           <TabsList className="w-full">
             <TabsTrigger value="tests" className="flex-1">Tests</TabsTrigger>
             <TabsTrigger value="modules" className="flex-1">Modules</TabsTrigger>
+            <TabsTrigger value="drugs" className="flex-1">Drugs</TabsTrigger>
             <TabsTrigger value="users" className="flex-1">Users</TabsTrigger>
           </TabsList>
 
@@ -197,6 +199,10 @@ export default function AdminPage() {
 
           <TabsContent value="modules" className="mt-4">
             <ModuleManager />
+          </TabsContent>
+
+          <TabsContent value="drugs" className="mt-4">
+            <DrugManager />
           </TabsContent>
 
           <TabsContent value="users" className="mt-4">
