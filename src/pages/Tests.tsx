@@ -5,6 +5,7 @@ import { BottomNav } from '@/components/BottomNav';
 import { PageLoader } from '@/components/PageLoader';
 import { PracticeSection } from '@/components/tests/PracticeSection';
 import { ModulesSection } from '@/components/tests/ModulesSection';
+import { DrugCategoriesPreview } from '@/components/tests/DrugCategoriesPreview';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -98,9 +99,10 @@ export default function TestsPage() {
       {/* Tabs */}
       <div className="flex-1 px-4 py-4">
         <Tabs defaultValue="modules" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-4">
+          <TabsList className="grid w-full grid-cols-3 mb-4">
             <TabsTrigger value="modules">Modules</TabsTrigger>
             <TabsTrigger value="practice">Practice</TabsTrigger>
+            <TabsTrigger value="drugs">Drugs</TabsTrigger>
           </TabsList>
           
           <TabsContent value="modules" className="mt-0">
@@ -109,6 +111,10 @@ export default function TestsPage() {
           
           <TabsContent value="practice" className="mt-0">
             <PracticeSection tests={tests} results={results} />
+          </TabsContent>
+
+          <TabsContent value="drugs" className="mt-0">
+            <DrugCategoriesPreview />
           </TabsContent>
         </Tabs>
       </div>
