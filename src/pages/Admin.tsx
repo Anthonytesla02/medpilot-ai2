@@ -5,10 +5,22 @@ import {
   FileText, 
   BarChart3, 
   ArrowLeft,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import {
   Table,
   TableBody,
@@ -121,6 +133,36 @@ export default function AdminPage() {
     });
   };
 
+  const handleDeleteUser = async (userId: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const response = await supabase.functions.invoke('delete-user', {
+        body: { user_id: userId },
+      });
+
+      if (response.error) {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: response.error.message || 'Failed to delete user',
+        });
+        return;
+      }
+
+      toast({ title: 'User deleted successfully' });
+      setUsers(prev => prev.filter(u => u.user_id !== userId));
+      fetchStats();
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to delete user',
+      });
+    }
+  };
+
   if (authLoading || adminLoading || loading) {
     return <PageLoader />;
   }
@@ -216,6 +258,7 @@ export default function AdminPage() {
                     <TableHead>Name</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Joined</TableHead>
+                    <TableHead className="w-12"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -230,11 +273,39 @@ export default function AdminPage() {
                       <TableCell className="text-muted-foreground">
                         {format(new Date(profile.created_at), 'MMM dd, yyyy')}
                       </TableCell>
+                      <TableCell>
+                        {profile.user_id !== user?.id && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete User</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete <strong>{profile.display_name || profile.email}</strong>? This action cannot be undone and will remove all their data.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDeleteUser(profile.user_id)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))}
                   {users.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                         No users yet
                       </TableCell>
                     </TableRow>
