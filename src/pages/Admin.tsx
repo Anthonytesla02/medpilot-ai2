@@ -75,6 +75,9 @@ export default function AdminPage() {
 
     if (isAdmin) {
       fetchData();
+      // Poll every second for real-time updates
+      const interval = setInterval(fetchStats, 1000);
+      return () => clearInterval(interval);
     }
   }, [user, authLoading, isAdmin, adminLoading, navigate]);
 
