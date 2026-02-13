@@ -12,53 +12,62 @@ Deno.serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Get user from auth header
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
+    if (!authHeader?.startsWith('Bearer ')) {
       return new Response(
         JSON.stringify({ error: 'Authorization required' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    // Validate token using getClaims
+    const anonClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
-    if (authError || !user) {
+    const { data: claimsData, error: claimsError } = await anonClient.auth.getClaims(token);
+
+    if (claimsError || !claimsData?.claims) {
       return new Response(
         JSON.stringify({ error: 'Invalid authorization' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    const userId = claimsData.claims.sub as string;
+
+    // Use service role client for data operations
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
     // Get subscription status
     const { data: subscription, error: subError } = await supabase
       .from('subscriptions')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .maybeSingle();
 
     // Get usage tracking
     const { data: usage, error: usageError } = await supabase
       .from('usage_tracking')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .maybeSingle();
 
     // If no records exist, create them (for existing users)
     if (!subscription) {
       await supabase.from('subscriptions').insert({
-        user_id: user.id,
+        user_id: userId,
         status: 'trial',
       });
     }
 
     if (!usage) {
       await supabase.from('usage_tracking').insert({
-        user_id: user.id,
+        user_id: userId,
         credits_remaining: 3,
         credits_purchased: 0,
       });
@@ -78,7 +87,7 @@ Deno.serve(async (req) => {
         await supabase
           .from('subscriptions')
           .update({ status: 'expired' })
-          .eq('user_id', user.id);
+          .eq('user_id', userId);
         isActive = false;
       }
     }
