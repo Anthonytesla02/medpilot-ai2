@@ -6,6 +6,7 @@ import {
   BarChart3, 
   ArrowLeft,
   Trash2,
+  MessageCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -33,6 +34,7 @@ import { PageLoader } from '@/components/PageLoader';
 import { ModuleManager } from '@/components/admin/ModuleManager';
 import { TestManager } from '@/components/admin/TestManager';
 import { DrugManager } from '@/components/admin/DrugManager';
+import { FeedbackManager } from '@/components/admin/FeedbackManager';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdmin } from '@/hooks/useAdmin';
 import { supabase } from '@/integrations/supabase/client';
@@ -236,6 +238,10 @@ export default function AdminPage() {
             <TabsTrigger value="modules" className="flex-1">Modules</TabsTrigger>
             <TabsTrigger value="drugs" className="flex-1">Drugs</TabsTrigger>
             <TabsTrigger value="users" className="flex-1">Users</TabsTrigger>
+            <TabsTrigger value="feedback" className="flex-1">
+              <MessageCircle className="w-3 h-3 mr-1" />
+              Feedback
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="tests" className="mt-4">
@@ -313,6 +319,10 @@ export default function AdminPage() {
                 </TableBody>
               </Table>
             </div>
+          </TabsContent>
+
+          <TabsContent value="feedback" className="mt-4">
+            <FeedbackManager />
           </TabsContent>
         </Tabs>
       </div>

@@ -30,6 +30,7 @@ import { PageLoader } from '@/components/PageLoader';
 import { UpgradeModal } from '@/components/UpgradeModal';
 import { UserAnalytics } from '@/components/profile/UserAnalytics';
 import { Leaderboard } from '@/components/profile/Leaderboard';
+import { FeedbackSection } from '@/components/profile/FeedbackSection';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdmin } from '@/hooks/useAdmin';
 import { useSubscription } from '@/hooks/useSubscription';
@@ -295,6 +296,16 @@ export default function ProfilePage() {
           </motion.button>
         </motion.div>
       )}
+
+      {/* Feedback */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.25 }}
+        className="px-4 py-2"
+      >
+        {user && <FeedbackSection userId={user.id} />}
+      </motion.div>
 
       {/* Settings */}
       <div className="px-4 py-4 space-y-4">
