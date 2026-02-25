@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      bnf_knowledge_chunks: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          metadata: Json | null
+          page_number: number | null
+          section: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          page_number?: number | null
+          section?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          page_number?: number | null
+          section?: string | null
+        }
+        Relationships: []
+      }
       conversations: {
         Row: {
           created_at: string
