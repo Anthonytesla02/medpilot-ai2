@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { PageLoader } from '@/components/PageLoader';
 import { PRICING_TIERS } from '@/hooks/useSubscription';
+import TutorialSection from '@/components/landing/TutorialSection';
 
 export default function Index() {
   const { user, loading } = useAuth();
