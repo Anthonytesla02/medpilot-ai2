@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { PageLoader } from '@/components/PageLoader';
 import { PRICING_TIERS } from '@/hooks/useSubscription';
+import TutorialSection from '@/components/landing/TutorialSection';
 
 export default function Index() {
   const { user, loading } = useAuth();
@@ -141,6 +142,9 @@ export default function Index() {
           ))}
         </motion.div>
       </div>
+
+      {/* Tutorial Videos Section */}
+      <TutorialSection />
 
       {/* Pricing Section */}
       <section id="pricing" className="py-16 px-6 bg-muted/30">
