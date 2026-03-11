@@ -143,6 +143,9 @@ export default function Index() {
         </motion.div>
       </div>
 
+      {/* Tutorial Videos Section */}
+      <TutorialSection />
+
       {/* Pricing Section */}
       <section id="pricing" className="py-16 px-6 bg-muted/30">
         <div className="max-w-5xl mx-auto">
