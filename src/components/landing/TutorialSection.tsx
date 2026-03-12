@@ -86,6 +86,13 @@ export default function TutorialSection() {
                 autoPlay
                 muted
                 playsInline
+                onVolumeChange={(e) => {
+                  const video = e.currentTarget;
+                  if (!video.muted) {
+                    video.muted = true;
+                    video.volume = 0;
+                  }
+                }}
               >
                 <source src={active.videoSrc} type="video/mp4" />
                 <div className="flex flex-col items-center gap-2 text-muted-foreground">
