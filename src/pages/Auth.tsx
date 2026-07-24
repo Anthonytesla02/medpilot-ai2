@@ -310,7 +310,7 @@ export default function Auth() {
             transition={{ delay: 0.3 }}
             className="text-4xl font-bold mb-4"
           >
-            MediGuide AI
+            Med Pilot AI
           </motion.h1>
           
           <motion.p
@@ -355,7 +355,7 @@ export default function Auth() {
               <Stethoscope className="w-6 h-6 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-xl font-bold gradient-text">MediGuide AI</h1>
+              <h1 className="text-xl font-bold gradient-text">Med Pilot AI</h1>
               <p className="text-xs text-muted-foreground">Ghana STG Assistant</p>
             </div>
           </div>
@@ -367,7 +367,7 @@ export default function Auth() {
             <p className="text-muted-foreground">
               {isSignUp 
                 ? 'Sign up to access medical treatment guidelines' 
-                : 'Sign in to continue to MediGuide AI'}
+                : 'Sign in to continue to Med Pilot AI'}
             </p>
           </div>
 

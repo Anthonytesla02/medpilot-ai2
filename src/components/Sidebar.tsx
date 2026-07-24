@@ -128,7 +128,7 @@ export function Sidebar({ currentConversationId, onSelectConversation, onNewConv
                   <Stethoscope className="w-5 h-5 text-primary-foreground" />
                 </div>
                 <div>
-                  <h2 className="font-semibold gradient-text">MediGuide AI</h2>
+                  <h2 className="font-semibold gradient-text">Med Pilot AI</h2>
                   <p className="text-xs text-muted-foreground">Ghana STG Assistant</p>
                 </div>
               </div>

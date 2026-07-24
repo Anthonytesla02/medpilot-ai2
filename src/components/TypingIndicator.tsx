@@ -21,7 +21,7 @@ export function TypingIndicator() {
           />
         ))}
       </div>
-      <span className="ml-2 text-sm text-muted-foreground">MediGuide is thinking...</span>
+      <span className="ml-2 text-sm text-muted-foreground">Med Pilot AI is thinking...</span>
     </div>
   );
 }

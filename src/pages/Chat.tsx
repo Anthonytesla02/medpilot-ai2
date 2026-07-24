@@ -246,7 +246,7 @@ export default function Chat() {
             <Stethoscope className="w-4 h-4 text-primary-foreground" />
           </div>
           <div className="text-center">
-            <h1 className="font-semibold text-sm gradient-text">MediGuide AI</h1>
+            <h1 className="font-semibold text-sm gradient-text">Med Pilot AI</h1>
             <p className="text-xs text-muted-foreground">Ghana STG Assistant</p>
           </div>
         </div>
@@ -267,7 +267,7 @@ export default function Chat() {
             >
               <Stethoscope className="w-10 h-10 text-primary" />
             </motion.div>
-            <h2 className="text-2xl font-bold mb-2">Welcome to MediGuide AI</h2>
+            <h2 className="text-2xl font-bold mb-2">Welcome to Med Pilot AI</h2>
             <p className="text-muted-foreground max-w-md mb-8">
               Your intelligent assistant for the Ghana Standard Treatment Guidelines. 
               Ask me about treatments, medications, symptoms, and medical protocols.

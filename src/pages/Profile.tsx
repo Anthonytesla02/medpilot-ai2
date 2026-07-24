@@ -395,7 +395,7 @@ export default function ProfilePage() {
         </motion.div>
 
         <p className="text-xs text-center text-muted-foreground pt-4">
-          MediGuide AI v1.0.0<br />
+          Med Pilot AI v1.0.0<br />
           Powered by Ghana Standard Treatment Guidelines
         </p>
       </div>

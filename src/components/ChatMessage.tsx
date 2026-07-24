@@ -88,7 +88,7 @@ export function ChatMessage({ role, content, isStreaming }: ChatMessageProps) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
           <span className="font-medium text-sm">
-            {isAssistant ? 'MediGuide AI' : 'You'}
+            {isAssistant ? 'Med Pilot AI' : 'You'}
           </span>
           {isAssistant && !isStreaming && (
             <Button

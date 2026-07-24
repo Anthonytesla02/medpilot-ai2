@@ -88,7 +88,7 @@ serve(async (req) => {
     }
 
     // Build system prompt with dual-source RAG context
-    const systemPrompt = `You are MediGuide AI, a knowledgeable medical assistant trained on TWO authoritative sources:
+    const systemPrompt = `You are Med Pilot AI, a knowledgeable medical assistant trained on TWO authoritative sources:
 1. **Ghana Standard Treatment Guidelines (STG)** - 7th Edition, 2017
 2. **British National Formulary (BNF)** - Edition 80, September 2020
 

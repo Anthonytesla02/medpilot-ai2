@@ -79,7 +79,7 @@ export default function Index() {
             transition={{ delay: 0.3 }}
             className="text-4xl md:text-5xl font-bold mb-4"
           >
-            <span className="gradient-text">MediGuide AI</span>
+            <span className="gradient-text">Med Pilot AI</span>
           </motion.h1>
 
           <motion.p
@@ -222,7 +222,7 @@ export default function Index() {
       {/* Footer */}
       <footer className="py-6 px-6 border-t border-border/50">
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-          <p>© 2024 MediGuide AI. Powered by Ghana STG 7th Edition.</p>
+          <p>© 2024 Med Pilot AI. Powered by Ghana STG 7th Edition.</p>
           <p className="text-xs text-center md:text-right">
             For educational purposes only. Consult healthcare professionals for medical decisions.
           </p>
