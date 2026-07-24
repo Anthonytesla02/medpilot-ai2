@@ -348,9 +348,9 @@ export function ModulesSection() {
                             </>
                           )}
                         </Button>
-                        {!quizResult?.passed && hasQuiz && index < modules.length - 1 && (
+                        {!quizResult?.passed && hasQuiz && (
                           <p className="text-xs text-muted-foreground text-center mt-2">
-                            Pass with 70% to unlock the next module
+                            Pass with 70% to earn your completion badge
                           </p>
                         )}
                       </div>
