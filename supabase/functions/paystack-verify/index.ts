@@ -70,7 +70,28 @@ Deno.serve(async (req) => {
     const creditsToAdd = Number(transaction.metadata?.credits) || 5;
     const tierName = transaction.metadata?.tier_name || 'Credits';
 
-    // Update payment history
+    // Verify that this payment reference belongs to the authenticated user
+    const { data: paymentRecord, error: recordErr } = await supabase
+      .from('payment_history')
+      .select('user_id')
+      .eq('paystack_reference', reference)
+      .maybeSingle();
+
+    if (recordErr || !paymentRecord) {
+      return new Response(
+        JSON.stringify({ error: 'Payment reference not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (paymentRecord.user_id !== user.id) {
+      return new Response(
+        JSON.stringify({ error: 'Payment reference does not belong to authenticated user' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Update payment history (scoped to owner)
     await supabase
       .from('payment_history')
       .update({
@@ -85,7 +106,9 @@ Deno.serve(async (req) => {
           tier_name: tierName,
         },
       })
-      .eq('paystack_reference', reference);
+      .eq('paystack_reference', reference)
+      .eq('user_id', user.id);
+
 
     if (isSuccessful) {
       // Get current usage to add credits
