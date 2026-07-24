@@ -66,7 +66,7 @@ export default function PaymentCallback() {
                 <p className="text-muted-foreground">{message}</p>
               </div>
               <Button onClick={() => navigate('/chat')} className="w-full">
-                Start Using MediGuide AI
+                Start Using Med Pilot AI
               </Button>
             </>
           )}

@@ -78,9 +78,9 @@ serve(async (req: Request): Promise<Response> => {
         "Authorization": `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: "MediGuide AI <onboarding@resend.dev>",
+        from: "Med Pilot AI <onboarding@resend.dev>",
         to: [email],
-        subject: "Verify your MediGuide AI account",
+        subject: "Verify your Med Pilot AI account",
         html: `
           <!DOCTYPE html>
           <html>
@@ -90,13 +90,13 @@ serve(async (req: Request): Promise<Response> => {
           </head>
           <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="text-align: center; margin-bottom: 30px;">
-              <h1 style="color: #0f766e; margin-bottom: 10px;">MediGuide AI</h1>
+              <h1 style="color: #0f766e; margin-bottom: 10px;">Med Pilot AI</h1>
               <p style="color: #666; font-size: 14px;">Ghana Standard Treatment Guidelines Assistant</p>
             </div>
             
             <div style="background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border-radius: 12px; padding: 30px; margin-bottom: 20px;">
               <h2 style="color: #0f766e; margin-top: 0;">Welcome${fullName ? `, ${fullName}` : ''}!</h2>
-              <p>Thank you for signing up for MediGuide AI. Please verify your email address to get started.</p>
+              <p>Thank you for signing up for Med Pilot AI. Please verify your email address to get started.</p>
               
               <div style="text-align: center; margin: 30px 0;">
                 <a href="${verificationUrl}" style="display: inline-block; background: #0f766e; color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">
@@ -111,7 +111,7 @@ serve(async (req: Request): Promise<Response> => {
             </div>
             
             <div style="text-align: center; color: #999; font-size: 12px;">
-              <p>If you didn't create an account with MediGuide AI, you can safely ignore this email.</p>
+              <p>If you didn't create an account with Med Pilot AI, you can safely ignore this email.</p>
               <p>This link will expire in 24 hours.</p>
             </div>
           </body>

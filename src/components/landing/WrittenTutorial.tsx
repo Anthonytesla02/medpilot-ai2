@@ -28,7 +28,7 @@ const guides: TutorialGuide[] = [
     steps: [
       {
         title: 'Step 1: Navigate to the Website',
-        content: 'Open your browser and go to the MediGuide AI website. You\'ll see the landing page with key features and a "Get Started" button.',
+        content: 'Open your browser and go to the Med Pilot AI website. You\'ll see the landing page with key features and a "Get Started" button.',
         image: '/images/tutorial/page_1.jpg',
       },
       {

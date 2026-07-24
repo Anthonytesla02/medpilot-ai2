@@ -67,7 +67,7 @@ export default function TutorialSection() {
             <Play className="w-3 h-3 mr-1" /> Tutorials
           </Badge>
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            See <span className="gradient-text">MediGuide AI</span> in Action
+            See <span className="gradient-text">Med Pilot AI</span> in Action
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto mb-6">
             Watch quick walkthroughs or read step-by-step guides for every feature.
