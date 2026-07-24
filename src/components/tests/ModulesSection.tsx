@@ -154,20 +154,9 @@ export function ModulesSection() {
     }
   };
 
-  const isModuleUnlocked = (moduleId: string, moduleIndex: number, modulesList: Module[] = modules): boolean => {
-    // First module is always unlocked
-    if (moduleIndex === 0) return true;
-
-    // Check if previous module's quiz was passed
-    const prevModule = modulesList[moduleIndex - 1];
-    if (!prevModule) return true;
-
-    // If previous module has no questions, it's unlocked
-    if (!moduleHasQuestions.has(prevModule.id)) return true;
-
-    // Check if user passed the previous module's quiz
-    const prevResult = quizResults.get(prevModule.id);
-    return prevResult?.passed === true;
+  const isModuleUnlocked = (_moduleId: string, _moduleIndex: number, _modulesList: Module[] = modules): boolean => {
+    // All modules are unlocked — users can freely explore any topic
+    return true;
   };
 
   const getModuleProgress = (moduleId: string) => {
