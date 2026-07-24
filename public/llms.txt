@@ -1,0 +1,11 @@
+# Med Pilot AI
+
+> AI medical assistant grounded in the Ghana Standard Treatment Guidelines (STG) and the British National Formulary (BNF). Built for medical and pharmacy students, interns and clinicians in Ghana and West Africa.
+
+Med Pilot AI answers clinical questions with dosages and safety warnings drawn from the Ghana STG and BNF, generates practice clinical case studies with AI grading, offers structured learning modules with quizzes, and includes a drug brand-to-generic lookup for common Ghanaian brands.
+
+## Pages
+- [Home](/): Product overview, features and getting started
+
+## Optional
+- [Sitemap](/sitemap.xml): Crawlable URL list

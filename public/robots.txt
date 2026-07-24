@@ -1,14 +1,10 @@
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: Twitterbot
-Allow: /
-
-User-agent: facebookexternalhit
-Allow: /
-
 User-agent: *
 Allow: /
+Disallow: /admin
+Disallow: /auth
+Disallow: /chat
+Disallow: /dashboard
+Disallow: /profile
+Disallow: /settings
+
+Sitemap: https://medpilot-ai.lovable.app/sitemap.xml
