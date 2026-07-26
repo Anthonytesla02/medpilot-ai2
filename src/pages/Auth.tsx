@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
+import { lovable } from '@/integrations/lovable';
 import {
   Select,
   SelectContent,
@@ -147,13 +148,10 @@ export default function Auth() {
     
     try {
       if (isSignUp) {
-        // First create the user account
-        const redirectUrl = `${window.location.origin}/`;
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            emailRedirectTo: redirectUrl,
             data: {
               full_name: fullName,
               role: selectedRole,
@@ -173,47 +171,27 @@ export default function Auth() {
             throw error;
           }
         } else if (data.user) {
-          // Update the user's role in user_roles table
           if (selectedRole) {
             const { error: roleError } = await supabase
               .from('user_roles')
               .update({ role: selectedRole as 'admin' | 'teacher' | 'worker_intern' | 'student' })
               .eq('user_id', data.user.id);
-
-            if (roleError) {
-              console.error("Error updating user role:", roleError);
-            }
+            if (roleError) console.error("Error updating user role:", roleError);
           }
 
-          // Update school in profiles if not admin
           if (selectedRole !== 'admin' && selectedSchool) {
             const { error: profileError } = await supabase
               .from('profiles')
               .update({ school: selectedSchool })
               .eq('user_id', data.user.id);
-
-            if (profileError) {
-              console.error("Error updating profile school:", profileError);
-            }
+            if (profileError) console.error("Error updating profile school:", profileError);
           }
 
-          // Send custom verification email via Resend
-          try {
-            const { error: emailError } = await supabase.functions.invoke('send-verification-email', {
-              body: { email, fullName, userId: data.user.id }
-            });
-            
-            if (emailError) {
-              console.error("Error sending verification email:", emailError);
-            }
-          } catch (emailErr) {
-            console.error("Failed to send custom verification email:", emailErr);
-          }
-          
           toast({
-            title: "Check Your Email",
-            description: "We've sent you a verification link. Please check your email (including spam folder) to confirm your account.",
+            title: "Welcome!",
+            description: "Your account has been created successfully.",
           });
+          navigate('/chat');
         }
       } else {
         const { error } = await signIn(email, password);
@@ -222,12 +200,6 @@ export default function Auth() {
             toast({
               title: "Invalid Credentials",
               description: "Please check your email and password.",
-              variant: "destructive",
-            });
-          } else if (error.message.includes('Email not confirmed')) {
-            toast({
-              title: "Email Not Verified",
-              description: "Please check your email and click the verification link.",
               variant: "destructive",
             });
           } else {
@@ -251,18 +223,23 @@ export default function Auth() {
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/chat`,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          },
-        },
+      const result = await lovable.auth.signInWithOAuth('google', {
+        redirect_uri: window.location.origin,
       });
-      
-      if (error) throw error;
+
+      if (result.error) {
+        toast({
+          title: "Google Sign In Failed",
+          description: (result.error as Error).message || "Could not sign in with Google.",
+          variant: "destructive",
+        });
+        setGoogleLoading(false);
+        return;
+      }
+
+      if (result.redirected) return;
+
+      navigate('/chat');
     } catch (error: any) {
       toast({
         title: "Google Sign In Failed",
