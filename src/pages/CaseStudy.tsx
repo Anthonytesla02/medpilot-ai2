@@ -1,432 +1,96 @@
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
-import { 
-  BookOpen, 
-  Send, 
-  RefreshCw, 
-  CheckCircle2, 
-  XCircle, 
-  AlertCircle,
-  Sparkles,
-  Trophy,
-  Target
-} from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Activity, ArrowLeft, ArrowUpRight, BookOpen, CheckCircle2, Clock, FlaskConical, HeartPulse, Loader2, Save, Send, ShieldCheck, Sparkles, Stethoscope, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { supabase } from '@/integrations/supabase/client';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { BottomNav } from '@/components/BottomNav';
 import { PageLoader } from '@/components/PageLoader';
+import { PatientPortrait } from '@/components/clinical/PatientPortrait';
+import { MedicationOrders } from '@/components/clinical/MedicationOrders';
+import { InteractionReference } from '@/components/clinical/InteractionReference';
+import { ClinicalResultView } from '@/components/clinical/ClinicalResultView';
+import { clinicalRequest } from '@/lib/clinical/api';
+import type { SessionData, LibraryCase, Decisions, ClinicalResult, Attempt } from '@/lib/clinical/types';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
-interface CaseStudyData {
-  id: string;
-  illness: string;
-  caseStudy: string;
-  correctDiagnosis: string;
-  correctTreatment: string;
-  difficulty: 'easy' | 'medium' | 'hard';
-  keyClues: string[];
-}
-
-interface GradeResult {
-  diagnosisScore: number;
-  diagnosisCorrect: boolean;
-  diagnosisFeedback: string;
-  treatmentScore: number;
-  treatmentCorrect: boolean;
-  treatmentFeedback: string;
-  overallScore: number;
-  overallFeedback: string;
-  correctDiagnosis: string;
-  correctTreatment: string;
-}
+import LegacyCaseStudy from './LegacyCaseStudy';
 
 export default function CaseStudy() {
-  const [caseData, setCaseData] = useState<CaseStudyData | null>(null);
-  const [userDiagnosis, setUserDiagnosis] = useState('');
-  const [userTreatment, setUserTreatment] = useState('');
-  const [gradeResult, setGradeResult] = useState<GradeResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [grading, setGrading] = useState(false);
-  const [casesCompleted, setCasesCompleted] = useState(0);
-  const [totalScore, setTotalScore] = useState(0);
-  
   const { user, loading: authLoading } = useAuth();
-  const navigate = useNavigate();
-  const { toast } = useToast();
-
+  const navigate = useNavigate(); const [params, setParams] = useSearchParams(); const { toast } = useToast();
+  const [cases, setCases] = useState<LibraryCase[]>([]); const [session, setSession] = useState<SessionData | null>(null);
+  const [mode, setMode] = useState('learning'); const [loading, setLoading] = useState(true); const [busy, setBusy] = useState(false); const [error, setError] = useState('');
+  const [tab, setTab] = useState('encounter'); const [legacy, setLegacy] = useState(false); const [tick, setTick] = useState(Date.now()); const [saved, setSaved] = useState(true);
+  const submissionKey = useRef(crypto.randomUUID()); const attemptId = params.get('attempt');
+  useEffect(() => { if (!authLoading && !user) navigate('/auth'); }, [authLoading, user, navigate]);
   useEffect(() => {
-    if (!authLoading && !user) {
-      navigate('/auth');
-    }
-  }, [user, authLoading, navigate]);
-
-  const generateNewCase = async () => {
-    setLoading(true);
-    setCaseData(null);
-    setGradeResult(null);
-    setUserDiagnosis('');
-    setUserTreatment('');
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        throw new Error('You must be signed in.');
-      }
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-case-study`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.access_token}`,
-            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          },
-          body: JSON.stringify({}),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to generate case study');
-      }
-
-      const data = await response.json();
-      setCaseData(data);
-    } catch (error) {
-      console.error('Error generating case:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to generate case study. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const submitAnswers = async () => {
-    if (!caseData || (!userDiagnosis.trim() && !userTreatment.trim())) {
-      toast({
-        title: 'Please provide answers',
-        description: 'Enter at least one answer before submitting.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setGrading(true);
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        throw new Error('You must be signed in.');
-      }
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/grade-case-study`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.access_token}`,
-            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          },
-          body: JSON.stringify({
-            correctDiagnosis: caseData.correctDiagnosis,
-            correctTreatment: caseData.correctTreatment,
-            userDiagnosis: userDiagnosis.trim(),
-            userTreatment: userTreatment.trim(),
-            illness: caseData.illness,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to grade answers');
-      }
-
-      const result = await response.json();
-      setGradeResult(result);
-      setCasesCompleted(prev => prev + 1);
-      setTotalScore(prev => prev + result.overallScore);
-    } catch (error) {
-      console.error('Error grading:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to grade answers. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setGrading(false);
-    }
-  };
-
-  const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case 'easy': return 'bg-green-500/20 text-green-600 border-green-500/30';
-      case 'medium': return 'bg-yellow-500/20 text-yellow-600 border-yellow-500/30';
-      case 'hard': return 'bg-red-500/20 text-red-600 border-red-500/30';
-      default: return 'bg-muted text-muted-foreground';
-    }
-  };
-
-  const getScoreColor = (score: number) => {
-    if (score >= 80) return 'text-green-500';
-    if (score >= 50) return 'text-yellow-500';
-    return 'text-red-500';
-  };
-
-  if (authLoading) {
-    return <PageLoader />;
-  }
-
-  return (
-    <div className="min-h-screen flex flex-col bg-background pb-20">
-      {/* Header */}
-      <header className="sticky top-0 z-30 glass border-b border-border/50">
-        <div className="px-4 py-4">
-          <div className="flex items-center justify-between mb-2">
-            <h1 className="text-xl font-bold flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-primary" />
-              Case Studies
-            </h1>
-            {casesCompleted > 0 && (
-              <Badge variant="outline" className="flex items-center gap-1">
-                <Trophy className="w-3 h-3" />
-                Avg: {Math.round(totalScore / casesCompleted)}%
-              </Badge>
-            )}
+    if (!user) return;
+    let active = true; setLoading(true); setError('');
+    const load = async () => { try {
+      if (attemptId) { const data = await clinicalRequest<SessionData>({ action: 'load', attemptId }); if (active) { setSession(data); setSaved(true); setTab('encounter'); } }
+      else { const data = await clinicalRequest<{ cases: LibraryCase[] }>({ action: 'library' }); if (active) { setCases(data.cases); setSession(null); } }
+    } catch (e) { if (active) setError(e instanceof Error ? e.message : 'Could not load cases.'); } finally { if (active) setLoading(false); } };
+    load(); return () => { active = false; };
+  }, [user, attemptId]);
+  useEffect(() => { const timer = setInterval(() => setTick(Date.now()), 1000); return () => clearInterval(timer); }, []);
+  const remaining = session?.attempt.deadline_at ? Math.max(0, Math.ceil((new Date(session.attempt.deadline_at).getTime() - tick) / 1000)) : null;
+  const expired = remaining === 0; const disabled = busy || expired || session?.attempt.status === 'completed';
+  const failure = (e: unknown) => { setError(e instanceof Error ? e.message : 'Request failed. Please try again.'); };
+  const start = async (key: string) => { setBusy(true); setError(''); try { const data = await clinicalRequest<SessionData>({ action: 'start', caseKey: key, mode }); setSession(data); submissionKey.current = crypto.randomUUID(); setParams({ attempt: data.attempt.id }); } catch (e) { failure(e); } finally { setBusy(false); } };
+  const update = (decisions: Decisions) => { setSession(s => s ? { ...s, attempt: { ...s.attempt, decisions } } : s); setSaved(false); };
+  const save = async () => { if (!session) return; setBusy(true); setError(''); try { const data = await clinicalRequest<{ attempt: Attempt }>({ action: 'save', attemptId: session.attempt.id, revision: session.attempt.revision, decisions: session.attempt.decisions }); setSession(s => s ? { ...s, attempt: data.attempt } : s); setSaved(true); toast({ title: 'Encounter saved' }); } catch (e) { failure(e); } finally { setBusy(false); } };
+  const event = async (kind: string, id: string) => { if (!session) return; setBusy(true); setError(''); try {
+    // Persist typed decisions before recording a server-timed clinical action.
+    let current = session.attempt;
+    if (!saved) { const savedData = await clinicalRequest<{ attempt: Attempt }>({ action: 'save', attemptId: current.id, revision: current.revision, decisions: current.decisions }); current = savedData.attempt; }
+    const data = await clinicalRequest<{ attempt: Attempt; answer?: string; rationale?: string }>({ action: 'event', attemptId: current.id, eventKind: kind, eventId: id });
+    setSession(s => s ? { ...s, attempt: data.attempt, encounter: { ...s.encounter, findings: s.encounter.findings.map(f => f.id === id && data.answer ? { ...f, answer: data.answer } : f) } } : s); setSaved(true);
+  } catch (e) { failure(e); } finally { setBusy(false); } };
+  const submit = async () => { if (!session) return; setBusy(true); setError(''); try { const data = await clinicalRequest<{ result: ClinicalResult }>({ action: 'submit', attemptId: session.attempt.id, revision: session.attempt.revision, decisions: session.attempt.decisions, submissionKey: submissionKey.current }); setSession(s => s ? { ...s, attempt: { ...s.attempt, status: 'completed', result: data.result } } : s); setSaved(true); } catch (e) { failure(e); } finally { setBusy(false); } };
+  const library = () => { if (!saved && !window.confirm('Leave this encounter without saving your latest entries?')) return; setParams({}); setSession(null); };
+  if (legacy) return <><div className="p-3 border-b border-border flex flex-wrap items-center justify-between gap-2"><Button variant="ghost" onClick={() => setLegacy(false)}><ArrowLeft className="h-4 w-4 mr-2" />Clinical encounters</Button><Badge variant="outline">AI draft · provisional feedback · no verified points</Badge></div><LegacyCaseStudy /></>;
+  if (authLoading || loading) return <PageLoader />;
+  if (!user) return null;
+  const recorded = (kind: string, id: string) => !!session?.attempt.events.some(e => e.id === id && e.kind === kind);
+  return <div className="min-h-screen bg-background pb-24">
+    <header className="border-b border-border bg-background sticky top-0 z-30"><div className="max-w-7xl mx-auto px-4 sm:px-8 py-4 flex items-center justify-between gap-3"><div className="flex items-center gap-3"><Stethoscope className="h-6 w-6 text-primary" /><div><p className="font-bold">Med Pilot AI</p><p className="text-xs text-muted-foreground">Clinical simulation</p></div></div><Button variant="ghost" size="sm" onClick={() => navigate('/profile?tab=clinical')}><UserRound className="h-4 w-4 mr-2" /><span className="hidden sm:inline">Identity Profile</span></Button></div></header>
+    <main className="max-w-7xl mx-auto px-4 sm:px-8 py-6">
+      {error && <div role="alert" className="border-l-2 border-destructive p-3 mb-5 text-sm text-destructive flex flex-wrap gap-3 items-center">{error}<Button variant="outline" size="sm" onClick={() => window.location.reload()}>Reload</Button></div>}
+      {!session ? <>
+        <div className="flex flex-wrap justify-between items-end gap-4 mb-7"><div><p className="text-xs uppercase text-primary mb-2">Practice / Case studies</p><h1 className="text-3xl font-bold">Clinical encounters</h1><p className="text-sm text-muted-foreground mt-2">Synthetic patients · source-backed drafts · educational use only</p></div><Tabs value={mode} onValueChange={setMode}><TabsList><TabsTrigger value="learning">Learning</TabsTrigger><TabsTrigger value="challenge">Challenge</TabsTrigger></TabsList></Tabs></div>
+        <Tabs defaultValue="cases"><TabsList className="mb-6"><TabsTrigger value="cases"><Stethoscope className="h-4 w-4 mr-2" />Cases</TabsTrigger><TabsTrigger value="references"><ShieldCheck className="h-4 w-4 mr-2" />Interactions</TabsTrigger></TabsList>
+          <TabsContent value="cases"><div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">{cases.map(c => <article key={c.id} className="border border-border rounded-lg overflow-hidden bg-card flex flex-col"><div className="relative aspect-[4/3] bg-muted"><PatientPortrait avatar={c.characters.find(x => x.primary)?.avatar ?? 'woman'} name={c.characters.find(x => x.primary)?.name ?? 'Patient'} className="w-full h-full" /><Badge variant="secondary" className="absolute top-3 left-3">{c.specialty}</Badge>{c.emergency && <Clock className="h-5 w-5 absolute right-3 top-3 text-primary" />}</div><div className="p-4 flex flex-col flex-1"><p className="text-xs text-muted-foreground capitalize">{c.difficulty} · Review pending</p><h2 className="font-semibold text-lg mt-2">{c.title}</h2><p className="text-sm text-muted-foreground mt-1">{c.characters.map(x => `${x.name}, ${x.age}`).join(' & ')}</p><Button className="mt-5 w-full justify-between" variant="outline" disabled={busy} onClick={() => start(c.key)}>Open encounter<ArrowUpRight className="h-4 w-4" /></Button></div></article>)}</div><div className="mt-8 py-5 border-t border-border flex flex-wrap gap-3 items-center justify-between"><p className="text-xs text-muted-foreground max-w-xl">Clinical review is pending. Draft cases save learning feedback but do not award competitive points or verified badges.</p><Button variant="ghost" onClick={() => setLegacy(true)}><Sparkles className="h-4 w-4 mr-2" />AI-generated cases</Button></div></TabsContent>
+          <TabsContent value="references"><InteractionReference /></TabsContent>
+        </Tabs>
+      </> : <>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-5"><Button variant="ghost" size="sm" className="-ml-3" onClick={library}><ArrowLeft className="h-4 w-4 mr-2" />Case library</Button><div className="flex gap-2 items-center"><Badge variant="outline" className="capitalize">{session.attempt.mode}</Badge><Badge variant="secondary">Review pending</Badge>{remaining !== null && <Badge variant={expired ? 'destructive' : 'outline'}><Clock className="h-3 w-3 mr-1" />{Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, '0')}</Badge>}</div></div>
+        <h1 className="text-2xl font-bold mb-2">{session.title}</h1><p className="text-xs text-muted-foreground mb-6">Educational simulation, not real prescribing or diagnostic advice.{remaining !== null && ' The countdown is a learning challenge setting, not a clinical waiting interval.'}</p>
+        {session.attempt.result ? <ClinicalResultView result={session.attempt.result} onRetry={() => { const key = cases.find(c => c.title === session.title)?.key; if (key) start(key); else { clinicalRequest<{ cases: LibraryCase[] }>({ action: 'library' }).then(data => { setCases(data.cases); const c = data.cases.find(c => c.title === session.title); if (c) start(c.key); }).catch(failure); } }} onLibrary={library} onProfile={() => navigate('/profile?tab=clinical')} /> : <div className="grid lg:grid-cols-[290px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)] gap-8">
+          <aside className="space-y-6"><div className="flex gap-4 items-center lg:block">{session.encounter.characters.filter(c => c.primary).map(c => <div key={c.id} className="flex gap-4 items-center lg:block"><PatientPortrait avatar={c.avatar} name={c.name} className="w-24 h-24 lg:w-full lg:h-auto lg:aspect-[4/3] rounded-lg" /><div className="lg:mt-3"><h2 className="font-semibold text-lg">{c.name}</h2><p className="text-sm text-muted-foreground">{c.age} years · {c.role}</p></div></div>)}</div>
+            {session.encounter.characters.filter(c => !c.primary).map(c => <div key={c.id} className="flex items-center gap-3 border-t border-border pt-3"><PatientPortrait avatar={c.avatar} name={c.name} className="w-12 h-12 rounded-md" /><div><p className="text-sm font-medium">{c.name}</p><p className="text-xs text-muted-foreground">{c.role} · {c.age} years · accompanying</p></div></div>)}
+            <section><h3 className="text-xs uppercase text-muted-foreground mb-3 flex gap-2 items-center"><HeartPulse className="h-4 w-4 text-primary" />Observations</h3><dl className="grid grid-cols-2 gap-3">{Object.entries(session.encounter.vitals).map(([k, v]) => <div key={k} className="border-l-2 border-border pl-3"><dt className="text-xs text-muted-foreground">{k}</dt><dd className="text-sm font-semibold mt-1">{v}</dd></div>)}</dl></section>
+            {[['Current medicines', session.encounter.currentMedications], ['Allergies', session.encounter.allergies], ['History', session.encounter.history]].map(([label, values]) => <section key={String(label)} className="border-t border-border pt-4"><h3 className="font-medium text-sm mb-2">{String(label)}</h3><p className="text-sm text-muted-foreground capitalize">{(values as string[]).join(', ') || 'None reported'}</p></section>)}
+          </aside>
+          <div className="min-w-0"><Tabs value={tab} onValueChange={setTab}><TabsList className="w-full grid grid-cols-3 mb-6"><TabsTrigger value="encounter"><Stethoscope className="h-4 w-4 mr-1" />Encounter</TabsTrigger><TabsTrigger value="treatment"><Activity className="h-4 w-4 mr-1" />Treatment</TabsTrigger><TabsTrigger value="references"><BookOpen className="h-4 w-4 mr-1" />Evidence</TabsTrigger></TabsList>
+            <TabsContent value="encounter" className="space-y-6"><section><h2 className="font-semibold text-lg mb-2">{session.encounter.complaint}</h2><p className="leading-relaxed text-muted-foreground">{session.encounter.narrative}</p><div className="flex flex-wrap gap-2 mt-4">{session.encounter.symptoms.map(s => <Badge key={s} variant="secondary">{s}</Badge>)}</div></section>
+              <section className="border-t border-border pt-5"><h3 className="font-semibold mb-4 flex items-center gap-2"><FlaskConical className="h-4 w-4 text-primary" />History, examination and investigations</h3><div className="space-y-3">{session.encounter.findings.map(f => <div key={f.id}><Button className="w-full justify-between h-auto py-3 whitespace-normal text-left" variant="outline" disabled={disabled || recorded('finding', f.id)} onClick={() => event('finding', f.id)}>{f.label}{recorded('finding', f.id) ? <CheckCircle2 className="h-4 w-4 shrink-0 text-primary ml-2" /> : <ArrowUpRight className="h-4 w-4 ml-2 shrink-0" />}</Button>{f.answer && <p className="text-sm text-muted-foreground p-3 border-l-2 border-primary mt-2">{f.answer}</p>}</div>)}</div></section>
+              <section className="space-y-4 border-t border-border pt-5"><div><Label htmlFor="primary-diagnosis">Primary diagnosis</Label><Input id="primary-diagnosis" placeholder="Enter your working diagnosis…" value={session.attempt.decisions.diagnosis} disabled={disabled} onChange={e => update({ ...session.attempt.decisions, diagnosis: e.target.value })} /></div><div><Label htmlFor="differentials">Differential diagnoses and reasoning</Label><Textarea id="differentials" value={session.attempt.decisions.differentials} disabled={disabled} onChange={e => update({ ...session.attempt.decisions, differentials: e.target.value })} placeholder="Alternative diagnoses and your reasoning…" /></div></section>
+            </TabsContent>
+            <TabsContent value="treatment" className="space-y-7"><section><h3 className="font-semibold mb-4">Management decisions</h3><div className="space-y-3">{session.encounter.actions.map(a => <Button key={a.id} variant="outline" className="w-full justify-between h-auto py-3 whitespace-normal text-left" disabled={disabled || recorded('action', a.id)} onClick={() => event('action', a.id)}>{a.label}{recorded('action', a.id) ? <CheckCircle2 className="h-4 w-4 shrink-0 ml-3 text-primary" /> : <ArrowUpRight className="h-4 w-4 shrink-0 ml-3" />}</Button>)}</div></section>
+              {session.encounter.procedures.length > 0 && <section className="border-t border-border pt-5"><h3 className="font-semibold mb-4">Procedural care</h3><p className="text-xs text-muted-foreground mb-3">Available supplies: clean water, clean cloth, gloves and sterile dressing.</p><div className="space-y-3">{session.encounter.procedures.map(p => <div key={p.id}><Button variant="outline" className="w-full justify-between h-auto py-3 whitespace-normal text-left" disabled={disabled || recorded('procedure', p.id)} onClick={() => event('procedure', p.id)}>{p.label}{recorded('procedure', p.id) ? <CheckCircle2 className="h-4 w-4 shrink-0 ml-2" /> : <ArrowUpRight className="h-4 w-4 shrink-0 ml-2" />}</Button>{session.attempt.mode === 'learning' && recorded('procedure', p.id) && <p className="text-xs text-muted-foreground mt-2 pl-3 border-l-2 border-primary">{p.rationale}</p>}</div>)}</div><ol className="text-xs text-muted-foreground mt-4 space-y-1">{session.attempt.events.filter(e => e.kind === 'procedure').map((e, i) => <li key={e.id}>{i + 1}. {session.encounter.procedures.find(p => p.id === e.id)?.label}</li>)}</ol></section>}
+              <section className="border-t border-border pt-5"><h3 className="font-semibold mb-4">Medication orders</h3><MedicationOrders attemptId={session.attempt.id} decisions={session.attempt.decisions} onChange={update} disabled={!!disabled} /></section>
+            </TabsContent>
+            <TabsContent value="references"><h3 className="font-semibold mb-3">Case sources</h3><div className="space-y-2 mb-6">{session.encounter.sources.map(s => <a key={s.url} href={s.url} target="_blank" rel="noopener noreferrer" className="block text-sm text-primary underline">{s.name}</a>)}</div><InteractionReference /></TabsContent>
+          </Tabs>
+          {expired && <p role="alert" className="text-sm text-destructive mt-6">The challenge deadline has passed. Only decisions saved before the deadline will be evaluated.</p>}
+          <div className="border-t border-border pt-5 mt-7 flex flex-wrap items-center gap-3"><Button variant="outline" disabled={disabled || saved} onClick={save}><Save className="h-4 w-4 mr-2" />Save encounter</Button><span className="text-xs text-muted-foreground flex-1">{saved ? 'Saved' : 'Unsaved entries'}</span><Button disabled={busy} onClick={submit}>{busy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}Complete encounter</Button></div>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Practice with AI-generated clinical scenarios from Ghana STG
-          </p>
-        </div>
-      </header>
-
-      <ScrollArea className="flex-1 px-4 py-4">
-        <AnimatePresence mode="wait">
-          {!caseData && !loading && (
-            <motion.div
-              key="start"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="flex flex-col items-center justify-center py-16 text-center"
-            >
-              <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
-                <Sparkles className="w-10 h-10 text-primary" />
-              </div>
-              <h2 className="text-2xl font-bold mb-3">Ready to Practice?</h2>
-              <p className="text-muted-foreground mb-6 max-w-sm">
-                Generate a case study based on real clinical scenarios from the Ghana Standard Treatment Guidelines.
-              </p>
-              <Button 
-                onClick={generateNewCase} 
-                size="lg" 
-                className="rounded-xl gap-2"
-              >
-                <Target className="w-5 h-5" />
-                Generate Case Study
-              </Button>
-            </motion.div>
-          )}
-
-          {loading && (
-            <motion.div
-              key="loading"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex flex-col items-center justify-center py-16"
-            >
-              <div className="relative">
-                <div className="w-16 h-16 border-4 border-primary/20 rounded-full" />
-                <div className="absolute inset-0 w-16 h-16 border-4 border-transparent border-t-primary rounded-full animate-spin" />
-              </div>
-              <p className="mt-4 text-muted-foreground">Generating case study...</p>
-            </motion.div>
-          )}
-
-          {caseData && !gradeResult && (
-            <motion.div
-              key="case"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="space-y-4"
-            >
-              <Card>
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <CardTitle className="text-lg">Clinical Case</CardTitle>
-                    <Badge className={cn("capitalize", getDifficultyColor(caseData.difficulty))}>
-                      {caseData.difficulty}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-foreground leading-relaxed whitespace-pre-wrap">
-                    {caseData.caseStudy}
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">1</span>
-                    What's the diagnosis?
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Textarea
-                    placeholder="Enter your diagnosis..."
-                    value={userDiagnosis}
-                    onChange={(e) => setUserDiagnosis(e.target.value)}
-                    className="min-h-[80px] resize-none"
-                  />
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">2</span>
-                    What's the treatment?
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Textarea
-                    placeholder="Enter the treatment protocol (drugs, dosages, duration)..."
-                    value={userTreatment}
-                    onChange={(e) => setUserTreatment(e.target.value)}
-                    className="min-h-[120px] resize-none"
-                  />
-                </CardContent>
-              </Card>
-
-              <Button 
-                onClick={submitAnswers} 
-                disabled={grading}
-                className="w-full rounded-xl gap-2"
-                size="lg"
-              >
-                {grading ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    Grading...
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-4 h-4" />
-                    Submit Answers
-                  </>
-                )}
-              </Button>
-            </motion.div>
-          )}
-
-          {gradeResult && (
-            <motion.div
-              key="result"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="space-y-4"
-            >
-              {/* Overall Score */}
-              <Card className="border-2 border-primary/20">
-                <CardContent className="pt-6">
-                  <div className="text-center mb-4">
-                    <div className={cn("text-5xl font-bold mb-2", getScoreColor(gradeResult.overallScore))}>
-                      {gradeResult.overallScore}%
-                    </div>
-                    <p className="text-muted-foreground">{gradeResult.overallFeedback}</p>
-                  </div>
-                  <Progress value={gradeResult.overallScore} className="h-2" />
-                </CardContent>
-              </Card>
-
-              {/* Diagnosis Result */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    {gradeResult.diagnosisCorrect ? (
-                      <CheckCircle2 className="w-5 h-5 text-green-500" />
-                    ) : (
-                      <XCircle className="w-5 h-5 text-red-500" />
-                    )}
-                    Diagnosis
-                    <Badge variant="outline" className={getScoreColor(gradeResult.diagnosisScore)}>
-                      {gradeResult.diagnosisScore}%
-                    </Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Your answer:</p>
-                    <p className="text-foreground">{userDiagnosis || "(No answer)"}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Correct answer:</p>
-                    <p className="text-foreground font-medium">{gradeResult.correctDiagnosis}</p>
-                  </div>
-                  <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/50">
-                    <AlertCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                    <p className="text-sm">{gradeResult.diagnosisFeedback}</p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Treatment Result */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    {gradeResult.treatmentCorrect ? (
-                      <CheckCircle2 className="w-5 h-5 text-green-500" />
-                    ) : (
-                      <XCircle className="w-5 h-5 text-red-500" />
-                    )}
-                    Treatment
-                    <Badge variant="outline" className={getScoreColor(gradeResult.treatmentScore)}>
-                      {gradeResult.treatmentScore}%
-                    </Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Your answer:</p>
-                    <p className="text-foreground whitespace-pre-wrap">{userTreatment || "(No answer)"}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Correct answer:</p>
-                    <p className="text-foreground font-medium whitespace-pre-wrap">{gradeResult.correctTreatment}</p>
-                  </div>
-                  <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/50">
-                    <AlertCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                    <p className="text-sm">{gradeResult.treatmentFeedback}</p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Button 
-                onClick={generateNewCase} 
-                className="w-full rounded-xl gap-2"
-                size="lg"
-              >
-                <RefreshCw className="w-4 h-4" />
-                Try Another Case
-              </Button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </ScrollArea>
-
-      <BottomNav />
-    </div>
-  );
+        </div>}
+      </>}
+    </main><BottomNav />
+  </div>;
 }
