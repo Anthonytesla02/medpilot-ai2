@@ -41,6 +41,188 @@ export type Database = {
         }
         Relationships: []
       }
+      clinical_attempts: {
+        Row: {
+          case_version_id: string
+          completed_at: string | null
+          deadline_at: string | null
+          decisions: Json
+          events: Json
+          id: string
+          mode: string
+          result: Json | null
+          revision: number
+          started_at: string
+          status: string
+          submission_key: string | null
+          user_id: string
+        }
+        Insert: {
+          case_version_id: string
+          completed_at?: string | null
+          deadline_at?: string | null
+          decisions?: Json
+          events?: Json
+          id?: string
+          mode?: string
+          result?: Json | null
+          revision?: number
+          started_at?: string
+          status?: string
+          submission_key?: string | null
+          user_id: string
+        }
+        Update: {
+          case_version_id?: string
+          completed_at?: string | null
+          deadline_at?: string | null
+          decisions?: Json
+          events?: Json
+          id?: string
+          mode?: string
+          result?: Json | null
+          revision?: number
+          started_at?: string
+          status?: string
+          submission_key?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinical_attempts_case_version_id_fkey"
+            columns: ["case_version_id"]
+            isOneToOne: false
+            referencedRelation: "clinical_case_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clinical_badge_definitions: {
+        Row: {
+          criteria: Json
+          description: string
+          id: string
+          name: string
+          rarity: string
+        }
+        Insert: {
+          criteria?: Json
+          description: string
+          id: string
+          name: string
+          rarity?: string
+        }
+        Update: {
+          criteria?: Json
+          description?: string
+          id?: string
+          name?: string
+          rarity?: string
+        }
+        Relationships: []
+      }
+      clinical_case_versions: {
+        Row: {
+          case_key: string
+          created_at: string
+          encounter: Json
+          id: string
+          private_rules: Json
+          review_status: string
+          source_references: Json
+          specialty: string
+          title: string
+          version: number
+        }
+        Insert: {
+          case_key: string
+          created_at?: string
+          encounter?: Json
+          id?: string
+          private_rules?: Json
+          review_status?: string
+          source_references?: Json
+          specialty?: string
+          title: string
+          version?: number
+        }
+        Update: {
+          case_key?: string
+          created_at?: string
+          encounter?: Json
+          id?: string
+          private_rules?: Json
+          review_status?: string
+          source_references?: Json
+          specialty?: string
+          title?: string
+          version?: number
+        }
+        Relationships: []
+      }
+      clinical_medication_references: {
+        Row: {
+          created_at: string
+          data: Json
+          id: string
+          reference_type: string
+          review_status: string
+        }
+        Insert: {
+          created_at?: string
+          data: Json
+          id: string
+          reference_type?: string
+          review_status?: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json
+          id?: string
+          reference_type?: string
+          review_status?: string
+        }
+        Relationships: []
+      }
+      clinical_user_badges: {
+        Row: {
+          attempt_id: string
+          awarded_at: string
+          badge_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          attempt_id: string
+          awarded_at?: string
+          badge_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          attempt_id?: string
+          awarded_at?: string
+          badge_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinical_user_badges_attempt_id_fkey"
+            columns: ["attempt_id"]
+            isOneToOne: false
+            referencedRelation: "clinical_attempts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_user_badges_badge_id_fkey"
+            columns: ["badge_id"]
+            isOneToOne: false
+            referencedRelation: "clinical_badge_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
           created_at: string
@@ -709,6 +891,18 @@ export type Database = {
     }
     Functions: {
       admin_exists: { Args: never; Returns: boolean }
+      complete_clinical_attempt: {
+        Args: {
+          p_attempt_id: string
+          p_badge_ids: string[]
+          p_decisions: Json
+          p_result: Json
+          p_revision: number
+          p_submission_key: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
