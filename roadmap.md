@@ -1,6 +1,6 @@
 # Clinical simulation transformation
 
-- [ ] Research authoritative drug interaction sources and record evidence and coverage limitations.
+- [x] Research authoritative drug interaction sources and record evidence and coverage limitations.
 - [ ] Restore and verify the remixed application's managed Cloud connection.
 - [ ] Add versioned clinical cases, medication references, interaction rules, private attempts and verified achievement persistence.
 - [ ] Extend case generation with structured validation and separate AI drafts from scored cases.
