@@ -1,10 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
+import { z } from 'npm:zod@3';
+const DraftSchema = z.object({ caseStudy: z.string().min(20).max(12000), correctDiagnosis: z.string().min(1).max(500), correctTreatment: z.string().min(1).max(12000), difficulty: z.enum(['easy', 'medium', 'hard']), keyClues: z.array(z.string().max(1000)).max(20) });
 
 const CURATED_ILLNESSES = [
   "Diarrhoea", "Rotavirus Disease and Diarrhoea", "Constipation", "Peptic Ulcer Disease",
@@ -45,6 +43,8 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !anonKey) throw new Error('Service connection unavailable');
 
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
@@ -58,7 +58,7 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const authClient = createClient(SUPABASE_URL!, Deno.env.get("SUPABASE_ANON_KEY")!);
+    const authClient = createClient(SUPABASE_URL, anonKey);
     const token = authHeader.replace("Bearer ", "");
     const { data: claimsData, error: claimsErr } = await authClient.auth.getClaims(token);
     if (claimsErr || !claimsData?.claims?.sub) {
@@ -68,12 +68,14 @@ serve(async (req) => {
       });
     }
 
+    const requestBody = z.object({}).strict().safeParse(await req.json().catch(() => null));
+    if (!requestBody.success) return new Response(JSON.stringify({ error: 'Invalid request' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     // Pick a random illness
     const selectedIllness = CURATED_ILLNESSES[Math.floor(Math.random() * CURATED_ILLNESSES.length)];
     console.log("Selected illness:", selectedIllness);
 
     // Initialize Supabase client and search for relevant knowledge
-    const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     
     // Search knowledge base for the illness
     const searchTerms = selectedIllness.toLowerCase().split(/\s+/).filter(t => t.length > 2);
@@ -181,7 +183,7 @@ IMPORTANT: Return ONLY valid JSON, no additional text.`;
     try {
       // Remove markdown code blocks if present
       const cleanedContent = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-      caseData = JSON.parse(cleanedContent);
+      caseData = DraftSchema.parse(JSON.parse(cleanedContent));
     } catch (parseError) {
       console.error("Failed to parse AI response:", content);
       throw new Error("Failed to parse case study response");
@@ -190,7 +192,10 @@ IMPORTANT: Return ONLY valid JSON, no additional text.`;
     return new Response(JSON.stringify({
       id: crypto.randomUUID(),
       illness: selectedIllness,
-      ...caseData
+      ...caseData,
+      contentType: 'ai_draft',
+      reviewStatus: 'unverified',
+      competitiveEligible: false
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

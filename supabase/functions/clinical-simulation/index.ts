@@ -100,7 +100,8 @@ Deno.serve(async req => {
     if (body.action === 'submit') {
       if (!body.submissionKey) return json({ error: 'Submission identity is required.' }, 400);
       // Clinical action credit comes exclusively from recorded, timely server events.
-      const decisions = expired ? decisionsSchema.parse(attempt.decisions) : body.decisions;
+      if (body.revision !== attempt.revision) return json({ error: 'Attempt changed. Reload before submitting.' }, 409);
+      const decisions = decisionsSchema.parse(attempt.decisions);
       decisions.actions = events.filter(e => ['action', 'finding'].includes(e.kind)).map(e => e.id);
       decisions.procedures = events.filter(e => e.kind === 'procedure').map(e => e.id);
       const result = evaluateAttempt(encounter, caseData.private_rules as ClinicalRules, decisions, attempt.mode, caseData.review_status === 'clinically_reviewed', expired);

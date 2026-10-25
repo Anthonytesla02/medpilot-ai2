@@ -50,7 +50,11 @@ export default function CaseStudy() {
     const data = await clinicalRequest<{ attempt: Attempt; answer?: string; rationale?: string }>({ action: 'event', attemptId: current.id, eventKind: kind, eventId: id });
     setSession(s => s ? { ...s, attempt: data.attempt, encounter: { ...s.encounter, findings: s.encounter.findings.map(f => f.id === id && data.answer ? { ...f, answer: data.answer } : f) } } : s); setSaved(true);
   } catch (e) { failure(e); } finally { setBusy(false); } };
-  const submit = async () => { if (!session) return; setBusy(true); setError(''); try { const data = await clinicalRequest<{ result: ClinicalResult }>({ action: 'submit', attemptId: session.attempt.id, revision: session.attempt.revision, decisions: session.attempt.decisions, submissionKey: submissionKey.current }); setSession(s => s ? { ...s, attempt: { ...s.attempt, status: 'completed', result: data.result } } : s); setSaved(true); } catch (e) { failure(e); } finally { setBusy(false); } };
+  const submit = async () => { if (!session) return; setBusy(true); setError(''); try {
+    let current = session.attempt;
+    if (!expired && !saved) { const savedData = await clinicalRequest<{ attempt: Attempt }>({ action: 'save', attemptId: current.id, revision: current.revision, decisions: current.decisions }); current = savedData.attempt; setSession(s => s ? { ...s, attempt: current } : s); setSaved(true); }
+    const data = await clinicalRequest<{ result: ClinicalResult }>({ action: 'submit', attemptId: current.id, revision: current.revision, decisions: current.decisions, submissionKey: submissionKey.current }); setSession(s => s ? { ...s, attempt: { ...s.attempt, status: 'completed', result: data.result } } : s); setSaved(true);
+  } catch (e) { failure(e); } finally { setBusy(false); } };
   const library = () => { if (!saved && !window.confirm('Leave this encounter without saving your latest entries?')) return; setParams({}); setSession(null); };
   if (legacy) return <><div className="p-3 border-b border-border flex flex-wrap items-center justify-between gap-2"><Button variant="ghost" onClick={() => setLegacy(false)}><ArrowLeft className="h-4 w-4 mr-2" />Clinical encounters</Button><Badge variant="outline">AI draft · provisional feedback · no verified points</Badge></div><LegacyCaseStudy /></>;
   if (authLoading || loading) return <PageLoader />;

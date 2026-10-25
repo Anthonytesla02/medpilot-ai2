@@ -31,6 +31,7 @@ import { UpgradeModal } from '@/components/UpgradeModal';
 import { UserAnalytics } from '@/components/profile/UserAnalytics';
 import { Leaderboard } from '@/components/profile/Leaderboard';
 import { FeedbackSection } from '@/components/profile/FeedbackSection';
+import { ClinicalProfile } from '@/components/clinical/ClinicalProfile';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdmin } from '@/hooks/useAdmin';
 import { useSubscription } from '@/hooks/useSubscription';
@@ -69,10 +70,11 @@ export default function ProfilePage() {
   }, [user]);
 
   const fetchProfile = async () => {
+    if (!user) return;
     const { data, error } = await supabase
       .from('profiles')
       .select('display_name, email')
-      .eq('user_id', user!.id)
+      .eq('user_id', user.id)
       .maybeSingle();
 
     if (!error && data) {
@@ -229,8 +231,9 @@ export default function ProfilePage() {
         transition={{ delay: 0.2 }}
         className="px-4 py-2"
       >
-        <Tabs defaultValue="stats" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-4">
+        <Tabs defaultValue={new URLSearchParams(window.location.search).get('tab') === 'clinical' ? 'clinical' : 'stats'} className="w-full">
+          <TabsList className="grid w-full grid-cols-4 mb-4">
+            <TabsTrigger value="clinical" className="text-xs">Clinical</TabsTrigger>
             <TabsTrigger value="stats" className="text-xs">
               <Trophy className="w-3 h-3 mr-1" />
               Stats
@@ -245,6 +248,7 @@ export default function ProfilePage() {
             </TabsTrigger>
           </TabsList>
 
+          <TabsContent value="clinical"><ClinicalProfile /></TabsContent>
           <TabsContent value="stats">
             <div className="grid grid-cols-3 gap-3">
               <div className="p-4 rounded-xl bg-card border border-border/50 text-center">
