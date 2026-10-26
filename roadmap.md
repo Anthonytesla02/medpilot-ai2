@@ -1,5 +1,7 @@
 # Clinical simulation transformation
 
+- [ ] Generate fresh structured AI draft encounters on case-study refresh while preserving medication orders and saved attempts.
+
 - [x] Research authoritative drug interaction sources and record evidence and coverage limitations.
 - [x] Restore and verify the remixed application's managed Cloud connection.
 - [x] Add versioned clinical cases, medication references, interaction rules, private attempts and achievement persistence.
