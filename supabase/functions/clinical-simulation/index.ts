@@ -30,6 +30,12 @@ Deno.serve(async req => {
     const db = createClient(url, key);
 
     if (body.action === 'library') {
+      const { data: fresh, error: generationError } = await auth.functions.invoke('generate-case-study', { body: { format: 'structured' }, headers: { Authorization: `Bearer ${token}` } });
+      if (generationError || fresh?.error || !Array.isArray(fresh?.cases)) return json({ error: fresh?.error ?? 'Fresh cases could not be generated. Please try again.' }, 503);
+      return json(fresh);
+    }
+
+    if (false) {
       // Seed immutable source-backed drafts; never promote to clinically reviewed automatically.
       const { error } = await db.from('clinical_case_versions').upsert(clinicalTemplates.map(t => ({ case_key: t.key, version: 1, title: t.title, specialty: t.specialty, encounter: t.encounter, private_rules: t.rules, source_references: t.encounter.sources })), { onConflict: 'case_key,version', ignoreDuplicates: true });
       if (error) throw error;
@@ -61,7 +67,7 @@ Deno.serve(async req => {
       const deadline = body.mode === 'challenge' && encounter.emergencySeconds ? new Date(Date.now() + encounter.emergencySeconds * 1000).toISOString() : null;
       const { data: attempt, error: startError } = await db.from('clinical_attempts').insert({ user_id: userId, case_version_id: caseData.id, mode: body.mode ?? 'learning', decisions: emptyDecisions(), deadline_at: deadline }).select('*').single();
       if (startError) throw startError;
-      return json({ attempt, encounter: { ...encounter, findings: encounter.findings.map(({ answer: _answer, ...f }) => f) }, title: caseData.title, specialty: caseData.specialty, reviewStatus: caseData.review_status });
+      return json({ attempt, caseKey: caseData.case_key, encounter: { ...encounter, findings: encounter.findings.map(({ answer: _answer, ...f }) => f) }, title: caseData.title, specialty: caseData.specialty, reviewStatus: caseData.review_status });
     }
 
     if (!body.attemptId) return json({ error: 'An attempt is required.' }, 400);
@@ -73,7 +79,7 @@ Deno.serve(async req => {
     const events = attempt.events as { id: string; kind: string; at: string }[];
     const exposed = { ...encounter, findings: encounter.findings.map(f => ({ ...f, answer: events.some(e => e.id === f.id && e.kind === 'finding') ? f.answer : undefined })) };
     const expired = !!attempt.deadline_at && Date.now() >= new Date(attempt.deadline_at).getTime();
-    if (body.action === 'load') return json({ attempt, encounter: exposed, title: caseData.title, specialty: caseData.specialty, reviewStatus: caseData.review_status, expired });
+    if (body.action === 'load') return json({ attempt, caseKey: caseData.case_key, encounter: exposed, title: caseData.title, specialty: caseData.specialty, reviewStatus: caseData.review_status, expired });
     if (attempt.status === 'completed') return body.action === 'submit' ? json({ result: attempt.result }) : json({ error: 'This attempt is complete.' }, 409);
     if (body.action === 'check') return json(checkSafety(body.decisions?.orders ?? [], encounter.currentMedications, encounter.allergies));
     if (body.action === 'event') {

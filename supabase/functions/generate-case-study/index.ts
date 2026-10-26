@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { z } from 'npm:zod@3';
+import { GeneratedCasesSchema, buildGeneratedTemplates } from '../_shared/generatedEncounter.ts';
 const DraftSchema = z.object({ caseStudy: z.string().min(20).max(12000), correctDiagnosis: z.string().min(1).max(500), correctTreatment: z.string().min(1).max(12000), difficulty: z.enum(['easy', 'medium', 'hard']), keyClues: z.array(z.string().max(1000)).max(20) });
 
 const CURATED_ILLNESSES = [
@@ -68,7 +69,7 @@ serve(async (req) => {
       });
     }
 
-    const requestBody = z.object({}).strict().safeParse(await req.json().catch(() => null));
+    const requestBody = z.object({ format: z.literal('structured').optional() }).strict().safeParse(await req.json().catch(() => null));
     if (!requestBody.success) return new Response(JSON.stringify({ error: 'Invalid request' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     // Pick a random illness
     const selectedIllness = CURATED_ILLNESSES[Math.floor(Math.random() * CURATED_ILLNESSES.length)];
@@ -115,7 +116,11 @@ serve(async (req) => {
     console.log("Found relevant context length:", relevantContext.length);
 
     // Generate case study using AI
-    const systemPrompt = `You are a medical case study generator. Create realistic, educational clinical case studies based on the Ghana Standard Treatment Guidelines.
+    const structured = requestBody.data.format === 'structured';
+    const systemPrompt = structured ? `Generate four entirely new, distinct synthetic clinical encounters for Ghanaian medical education. Include a case related to ${selectedIllness}, and three other varied common conditions. Fresh batch seed: ${crypto.randomUUID()}.
+Use this reference context only when relevant: ${relevantContext || 'No retrieved source context; content is unverified.'}
+Return ONLY JSON: {"cases":[{"title":"non-diagnostic presentation title","specialty":"General medicine","diagnosis":"private working diagnosis","diagnosisAliases":["accepted diagnosis"],"characters":[{"id":"patient","name":"synthetic Ghanaian name","age":30,"avatar":"man","role":"Patient","primary":true}],"complaint":"presenting complaint","narrative":"realistic 100-150 word story without revealing diagnosis","symptoms":["symptom"],"history":[],"currentMedications":[],"allergies":[],"vitals":{"Pulse":"80 /min"},"findings":[{"id":"history-1","label":"Ask about symptom onset","kind":"history","answer":"specific synthetic finding"},{"id":"exam-1","label":"Examine patient","kind":"examination","answer":"specific synthetic examination"}],"actions":[{"id":"assess-plan","label":"case-specific management or assessment"},{"id":"followup","label":"case-specific safety net and follow-up"}],"difficulty":"easy","explanation":"provisional rationale"}]}
+Return exactly four cases, each with 2-6 findings and 2-6 management actions with unique IDs. Exactly one primary patient per case; children may have a separate accompanying adult. Avatars: man, woman, boy, girl, older-woman, mother-infant. Finding kinds: history, examination, investigation. Difficulty: easy, medium, hard. Never invent source citations, medication dosing rules, clinical outcome predictions, or procedural protocols. Do not prescribe a drug or dose in action labels; medication orders are learner-entered. These are unverified drafts, not reviewed guidance.` : `You are a medical case study generator. Create realistic, educational clinical case studies based on the Ghana Standard Treatment Guidelines.
 
 CONTEXT FROM GHANA STG:
 ${relevantContext || "No specific context available for " + selectedIllness}
@@ -155,7 +160,7 @@ IMPORTANT: Return ONLY valid JSON, no additional text.`;
         model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Generate a case study for ${selectedIllness}. Return only JSON.` }
+          { role: "user", content: structured ? 'Generate four fresh structured case studies. Return only JSON.' : `Generate a case study for ${selectedIllness}. Return only JSON.` }
         ],
         stream: false,
       }),
@@ -183,6 +188,12 @@ IMPORTANT: Return ONLY valid JSON, no additional text.`;
     try {
       // Remove markdown code blocks if present
       const cleanedContent = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      if (structured) {
+        const templates = buildGeneratedTemplates(GeneratedCasesSchema.parse(JSON.parse(cleanedContent)));
+        const { data: savedCases, error: saveError } = await supabase.from('clinical_case_versions').insert(templates.map(t => ({ case_key: t.key, version: 1, title: t.title, specialty: t.specialty, encounter: t.encounter, private_rules: t.rules, source_references: [], review_status: 'ai_draft' }))).select('id, case_key, title, specialty, review_status, encounter');
+        if (saveError) throw saveError;
+        return new Response(JSON.stringify({ cases: (savedCases ?? []).map(c => ({ id: c.id, key: c.case_key, title: c.title, specialty: c.specialty, reviewStatus: c.review_status, difficulty: c.encounter.difficulty, characters: c.encounter.characters, emergency: false, procedural: false })) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
       caseData = DraftSchema.parse(JSON.parse(cleanedContent));
     } catch (parseError) {
       console.error("Failed to parse AI response:", content);
