@@ -1,11 +1,12 @@
 # Clinical simulation transformation
 
 - [x] Research authoritative drug interaction sources and record evidence and coverage limitations.
-- [ ] Restore and verify the remixed application's managed Cloud connection.
-- [ ] Add versioned clinical cases, medication references, interaction rules, private attempts and verified achievement persistence.
-- [ ] Extend case generation with structured validation and separate AI drafts from scored cases.
-- [ ] Implement server-side treatment evaluation, patient progression, emergency timing, procedural evaluation and idempotent scoring.
-- [ ] Build patient encounters, investigations, medication orders, safety checks, injury workflows and emergency challenges.
-- [ ] Connect Identity Profile metrics, badges, history and retries to authoritative attempt records.
-- [ ] Verify clinical rules, access controls, duplicate protection and complete desktop/mobile workflows.
-- [ ] Obtain qualified clinical review before labeling sourced rules or cases clinically reviewed.
+- [x] Restore and verify the remixed application's managed Cloud connection.
+- [x] Add versioned clinical cases, medication references, interaction rules, private attempts and achievement persistence.
+- [x] Validate AI draft response structure and keep existing generation separate from structured simulation cases.
+- [x] Implement provisional server-side evaluation, evidence-bounded progression, emergency timing, procedural evaluation and idempotent completion.
+- [x] Build four draft patient encounters, investigations, medication orders, safety checks, injury workflows and emergency challenges.
+- [x] Connect Identity Profile learning metrics, verified-badge display, history and retries to saved attempt records.
+- [x] Verify nine clinical-rule tests, private-key access, score-write protection, duplicates, signed-in persistence, medication/injury flows and desktop/mobile layouts.
+- [ ] Qualified clinical review is required for validated dosing, modeled physiological outcomes, competitive scoring and verified achievements; current cases remain sourced drafts.
+- [ ] Expanded interaction and formulation coverage requires an authoritative licensed or reuse-approved dataset; current coverage is ten attributed interaction examples.
