@@ -1,9 +1,8 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { z } from 'npm:zod@3';
-import { clinicalTemplates, emptyDecisions, type Encounter, type ClinicalRules } from '../_shared/clinical.ts';
+import { emptyDecisions, type Encounter, type ClinicalRules } from '../_shared/clinical.ts';
 import { checkSafety, evaluateAttempt } from '../_shared/evaluate.ts';
-import { drugInteractionReferences } from '../_shared/drugInteractions.ts';
 
 const orderSchema = z.object({ id: z.string().max(100), ingredient: z.string().min(1).max(100), dose: z.string().max(100), route: z.string().max(100), frequency: z.string().max(100), duration: z.string().max(100), status: z.enum(['prescribed', 'administered']), acknowledged: z.boolean() });
 const decisionsSchema = z.object({ diagnosis: z.string().max(500), differentials: z.string().max(1000), orders: z.array(orderSchema).max(30), actions: z.array(z.string().max(100)).max(100), procedures: z.array(z.string().max(100)).max(30) });
@@ -30,20 +29,9 @@ Deno.serve(async req => {
     const db = createClient(url, key);
 
     if (body.action === 'library') {
-      // Seed immutable source-backed drafts; never promote to clinically reviewed automatically.
-      const { error } = await db.from('clinical_case_versions').upsert(clinicalTemplates.map(t => ({ case_key: t.key, version: 1, title: t.title, specialty: t.specialty, encounter: t.encounter, private_rules: t.rules, source_references: t.encounter.sources })), { onConflict: 'case_key,version', ignoreDuplicates: true });
-      if (error) throw error;
-      const { error: referenceError } = await db.from('clinical_medication_references').upsert(drugInteractionReferences.map(r => ({ id: r.id, data: r })), { onConflict: 'id', ignoreDuplicates: true });
-      if (referenceError) throw referenceError;
-      const { error: badgeError } = await db.from('clinical_badge_definitions').upsert([
-        { id: 'flawless-case', name: 'Flawless Case', description: 'Complete a reviewed case with 100% and no safety errors.', rarity: 'rare', criteria: { reviewed: true, score: 100, criticalErrors: 0 } },
-        { id: 'precision-practitioner', name: 'Precision Practitioner', description: 'Complete all reviewed procedural requirements in order without errors.', rarity: 'rare', criteria: { reviewed: true, score: 100, proceduralOrder: true, criticalErrors: 0 } },
-        { id: 'emergency-response', name: 'Emergency Response', description: 'Complete every reviewed emergency requirement before the scenario deadline.', rarity: 'rare', criteria: { reviewed: true, score: 100, beforeDeadline: true, criticalErrors: 0 } },
-      ], { onConflict: 'id', ignoreDuplicates: true });
-      if (badgeError) throw badgeError;
-      const { data, error: listError } = await db.from('clinical_case_versions').select('id, case_key, title, specialty, review_status, encounter');
-      if (listError) throw listError;
-      return json({ cases: (data ?? []).map(c => ({ id: c.id, key: c.case_key, title: c.title, specialty: c.specialty, reviewStatus: c.review_status, difficulty: c.encounter.difficulty, characters: c.encounter.characters, emergency: !!c.encounter.emergencySeconds, procedural: c.encounter.procedures.length > 0 })), interactions: drugInteractionReferences });
+      const { data: fresh, error: generationError } = await auth.functions.invoke('generate-case-study', { body: { format: 'structured' }, headers: { Authorization: `Bearer ${token}` } });
+      if (generationError || fresh?.error || !Array.isArray(fresh?.cases)) return json({ error: fresh?.error ?? 'Fresh cases could not be generated. Please try again.' }, 503);
+      return json(fresh);
     }
 
     if (body.action === 'profile') {
@@ -61,7 +49,7 @@ Deno.serve(async req => {
       const deadline = body.mode === 'challenge' && encounter.emergencySeconds ? new Date(Date.now() + encounter.emergencySeconds * 1000).toISOString() : null;
       const { data: attempt, error: startError } = await db.from('clinical_attempts').insert({ user_id: userId, case_version_id: caseData.id, mode: body.mode ?? 'learning', decisions: emptyDecisions(), deadline_at: deadline }).select('*').single();
       if (startError) throw startError;
-      return json({ attempt, encounter: { ...encounter, findings: encounter.findings.map(({ answer: _answer, ...f }) => f) }, title: caseData.title, specialty: caseData.specialty, reviewStatus: caseData.review_status });
+      return json({ attempt, caseKey: caseData.case_key, encounter: { ...encounter, findings: encounter.findings.map(({ answer: _answer, ...f }) => f) }, title: caseData.title, specialty: caseData.specialty, reviewStatus: caseData.review_status });
     }
 
     if (!body.attemptId) return json({ error: 'An attempt is required.' }, 400);
@@ -73,7 +61,7 @@ Deno.serve(async req => {
     const events = attempt.events as { id: string; kind: string; at: string }[];
     const exposed = { ...encounter, findings: encounter.findings.map(f => ({ ...f, answer: events.some(e => e.id === f.id && e.kind === 'finding') ? f.answer : undefined })) };
     const expired = !!attempt.deadline_at && Date.now() >= new Date(attempt.deadline_at).getTime();
-    if (body.action === 'load') return json({ attempt, encounter: exposed, title: caseData.title, specialty: caseData.specialty, reviewStatus: caseData.review_status, expired });
+    if (body.action === 'load') return json({ attempt, caseKey: caseData.case_key, encounter: exposed, title: caseData.title, specialty: caseData.specialty, reviewStatus: caseData.review_status, expired });
     if (attempt.status === 'completed') return body.action === 'submit' ? json({ result: attempt.result }) : json({ error: 'This attempt is complete.' }, 409);
     if (body.action === 'check') return json(checkSafety(body.decisions?.orders ?? [], encounter.currentMedications, encounter.allergies));
     if (body.action === 'event') {
