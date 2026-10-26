@@ -2,6 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { clinicalTemplates, emptyDecisions, performanceBand } from '../../../supabase/functions/_shared/clinical';
 import { checkSafety, evaluateAttempt } from '../../../supabase/functions/_shared/evaluate';
 describe('clinical simulation rules', () => {
+  it('never authorizes competitive points or badges for newly generated AI drafts', () => {
+    const t = clinicalTemplates[0]; const d = emptyDecisions(); d.diagnosis = 'drug interaction'; d.actions = t.rules.requirements.filter(r => r.type === 'action').map(r => r.id);
+    const result = evaluateAttempt(t.encounter, { ...t.rules, version: 'ai-draft-v1' }, d, 'challenge', true);
+    expect(result.score).toBe(100); expect(result.points).toBe(0); expect(result.badgeIds).toEqual([]); expect(result.eligible).toBe(false); expect(result.reviewStatus).toBe('ai_draft');
+  });
   it('uses the specified below-50, 50-to-below-80 and 80-to-100 bands', () => {
     expect(performanceBand(49)).toBe('poor'); expect(performanceBand(50)).toBe('partial'); expect(performanceBand(79)).toBe('partial'); expect(performanceBand(80)).toBe('strong');
   });
