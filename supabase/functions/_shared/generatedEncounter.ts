@@ -10,8 +10,8 @@ export const GeneratedCasesSchema = z.object({ cases: z.array(z.object({
   findings: z.array(z.object({ id: text, label: text, kind: z.enum(['history', 'examination', 'investigation']), answer: text })).min(2).max(6),
   actions: z.array(z.object({ id: text, label: text })).min(2).max(6),
   difficulty: z.enum(['easy', 'medium', 'hard']), explanation: text,
-})).length(4) }).superRefine(({ cases }, ctx) => {
-  if (new Set(cases.map(c => c.title)).size !== 4) ctx.addIssue({ code: 'custom', message: 'Cases must have distinct titles.' });
+})).length(1) }).superRefine(({ cases }, ctx) => {
+  
   cases.forEach((c, index) => {
     if (c.characters.filter(p => p.primary).length !== 1) ctx.addIssue({ code: 'custom', path: ['cases', index], message: 'Exactly one primary patient required.' });
     const ids = [...c.findings, ...c.actions].map(item => item.id);
