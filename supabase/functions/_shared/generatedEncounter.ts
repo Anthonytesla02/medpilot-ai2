@@ -26,13 +26,13 @@ export function buildGeneratedTemplates(data: z.infer<typeof GeneratedCasesSchem
     rules: {
       version: 'ai-draft-v1',
       requirements: [
-        { id: 'diagnosis', label: `AI draft working diagnosis: ${diagnosis}`, type: 'diagnosis', dimension: 'Diagnosis', points: 20, aliases: [diagnosis, ...diagnosisAliases] },
+        { id: 'diagnosis', label: `Diagnosis: ${diagnosis}`, type: 'diagnosis', dimension: 'Diagnosis', points: 20, aliases: [diagnosis, ...diagnosisAliases] },
         ...encounter.findings.map(f => ({ id: f.id, label: f.label, type: 'action' as const, dimension: 'Investigation', points: 40 / encounter.findings.length })),
         ...encounter.actions.map(a => ({ id: a.id, label: a.label, type: 'action' as const, dimension: 'Treatment', points: 40 / encounter.actions.length, essential: true })),
       ],
-      outcome: { success: 'Draft management steps documented; patient outcome is not modeled', incomplete: 'Draft management plan incomplete; patient outcome is not modeled', unsafe: 'Medication safety concern recorded; clinical review required' },
-      timeline: [{ label: 'Recorded plan', complete: 'The draft management steps were recorded. Recovery or adverse events cannot be predicted.', incomplete: 'Review the omitted draft management steps. No deterioration or adverse event is inferred.' }],
-      explanation: `Unverified AI-generated educational draft. ${explanation} Medication selection, doses and patient outcomes require qualified clinical review.`,
+      outcome: { success: 'Management plan complete', incomplete: 'Management plan incomplete', unsafe: 'Medication safety concern recorded' },
+      timeline: [{ label: 'Recorded plan', complete: 'All key management steps were recorded.', incomplete: 'Some key management steps were missed. See the correct management below.' }],
+      explanation,
     },
   }));
 }
