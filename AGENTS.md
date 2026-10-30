@@ -4,3 +4,4 @@
 - Preserve the generated Cloud client and configuration; repair mismatched bindings through managed connection tools instead of hardcoding replacement credentials or alternate clients.
 - Keep versioned encounter answer keys private and derive clinical action credit from authenticated server-timed events; this prevents browser edits from authorizing scores or achievements.
 - Share typed clinical contracts between the encounter UI and trusted edge evaluator; persist newly generated structured encounters as uniquely keyed AI drafts with private provisional rules, never clinical outcome or medication-dose rules, so generation cannot authorize reviewed scores or achievements.
+- Store case-applicable STG summary quotations and provenance in private answer keys; require server-side treatment comparison against those same quotations and return them on completion, keeping provisional educational assessment separate from reviewed dose rules and outcomes.

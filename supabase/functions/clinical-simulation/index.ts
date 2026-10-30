@@ -3,6 +3,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { z } from 'npm:zod@3';
 import { emptyDecisions, type Encounter, type ClinicalRules } from '../_shared/clinical.ts';
 import { checkSafety, evaluateAttempt } from '../_shared/evaluate.ts';
+import { compareSTGTreatment } from '../_shared/stgReference.ts';
 
 const orderSchema = z.object({ id: z.string().max(100), ingredient: z.string().min(1).max(100), dose: z.string().max(100), route: z.string().max(100), frequency: z.string().max(100), duration: z.string().max(100), status: z.enum(['prescribed', 'administered']), acknowledged: z.boolean() });
 const decisionsSchema = z.object({ diagnosis: z.string().max(500), differentials: z.string().max(1000), orders: z.array(orderSchema).max(30), actions: z.array(z.string().max(100)).max(100), procedures: z.array(z.string().max(100)).max(30) });
@@ -92,7 +93,11 @@ Deno.serve(async req => {
       const decisions = decisionsSchema.parse(attempt.decisions);
       decisions.actions = events.filter(e => ['action', 'finding'].includes(e.kind)).map(e => e.id);
       decisions.procedures = events.filter(e => e.kind === 'procedure').map(e => e.id);
-      const result = evaluateAttempt(encounter, caseData.private_rules as ClinicalRules, decisions, attempt.mode, caseData.review_status === 'clinically_reviewed', expired);
+      const rules = caseData.private_rules as ClinicalRules;
+      const apiKey = Deno.env.get('LOVABLE_API_KEY');
+      if (rules.stgReference && !apiKey) return json({ error: 'STG treatment comparison is unavailable. Please retry later.' }, 503);
+      const comparison = rules.stgReference && apiKey ? await compareSTGTreatment(rules.stgReference, decisions, apiKey, { ...encounter, diagnosis: rules.requirements.find(r => r.type === 'diagnosis')?.label, recordedActions: decisions.actions.map(id => encounter.actions.find(a => a.id === id)?.label).filter(Boolean) }) : undefined;
+      const result = evaluateAttempt(encounter, rules, decisions, attempt.mode, caseData.review_status === 'clinically_reviewed', expired, comparison);
       const { data, error } = await db.rpc('complete_clinical_attempt', { p_attempt_id: attempt.id, p_user_id: userId, p_revision: body.revision ?? -1, p_decisions: decisions, p_result: result, p_submission_key: body.submissionKey, p_badge_ids: result.badgeIds });
       if (error) return json({ error: 'Attempt changed or could not be completed. Reload before retrying.' }, 409);
       return json({ result: data });

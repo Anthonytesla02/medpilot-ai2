@@ -1,7 +1,26 @@
 import { describe, it, expect } from 'vitest';
 import { clinicalTemplates, emptyDecisions, performanceBand } from '../../../supabase/functions/_shared/clinical';
 import { checkSafety, evaluateAttempt } from '../../../supabase/functions/_shared/evaluate';
+import { attachSTGTreatment } from '../../../supabase/functions/_shared/stgReference';
 describe('clinical simulation rules', () => {
+  const quote = 'Give oral rehydration solution.';
+  const reference = { chunkId: 'test-source', chapter: 'Gastrointestinal disorders', section: 'Diarrhoea', page: 11, excerpt: quote };
+  it('retains the same STG reference for correct and incorrect treatments', () => {
+    const t = clinicalTemplates[0];
+    const rules = { ...t.rules, version: 'ai-draft-v1', stgReference: attachSTGTreatment(reference, [quote]) };
+    const correct = evaluateAttempt(t.encounter, rules, emptyDecisions(), 'learning', false, false, { score: 100, feedback: 'Matches reference' });
+    const incorrect = evaluateAttempt(t.encounter, rules, emptyDecisions(), 'learning', false, false, { score: 0, feedback: 'Treatment omitted' });
+    expect(correct.stgReference?.treatment).toEqual([quote]);
+    expect(incorrect.stgReference).toEqual(correct.stgReference);
+    expect(correct.score).toBeGreaterThan(incorrect.score);
+  });
+  it('does not score STG cases without an actual treatment comparison', () => {
+    const t = clinicalTemplates[0];
+    expect(() => evaluateAttempt(t.encounter, { ...t.rules, stgReference: attachSTGTreatment(reference, [quote]) }, emptyDecisions(), 'learning', false)).toThrow('STG comparison is required');
+  });
+  it('rejects treatment text absent from the stored source', () => {
+    expect(() => attachSTGTreatment(reference, ['Invented medication dose'])).toThrow();
+  });
   it('never authorizes competitive points or badges for newly generated AI drafts', () => {
     const t = clinicalTemplates[0]; const d = emptyDecisions(); d.diagnosis = 'drug interaction'; d.actions = t.rules.requirements.filter(r => r.type === 'action').map(r => r.id);
     const result = evaluateAttempt(t.encounter, { ...t.rules, version: 'ai-draft-v1' }, d, 'challenge', true);

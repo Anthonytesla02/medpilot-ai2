@@ -1,5 +1,6 @@
 # Clinical simulation transformation
 
+- [ ] Always show source-linked STG treatment after submission and compare entered treatment against the same private reference.
 - [x] Generate fresh structured AI draft encounters on case-study refresh while preserving medication orders and saved attempts; verified generation, prescribing, reload persistence and completion while signed in.
 
 - [x] Research authoritative drug interaction sources and record evidence and coverage limitations.
