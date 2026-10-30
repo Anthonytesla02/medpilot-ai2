@@ -31,7 +31,12 @@ Deno.serve(async req => {
 
     if (body.action === 'library') {
       const { data: fresh, error: generationError } = await auth.functions.invoke('generate-case-study', { body: { format: 'structured' }, headers: { Authorization: `Bearer ${token}` } });
-      if (generationError || fresh?.error || !Array.isArray(fresh?.cases)) return json({ error: fresh?.error ?? 'Fresh cases could not be generated. Please try again.' }, 503);
+      if (generationError || fresh?.error || !Array.isArray(fresh?.cases)) {
+        const details = generationError && 'context' in generationError && generationError.context instanceof Response ? await generationError.context.json().catch(() => null) : null;
+        console.error('Case generation failed:', details?.error ?? generationError?.message ?? fresh?.error);
+        return json({ error: details?.error ?? fresh?.error ?? 'Fresh case could not be generated. Please try again.' }, 503);
+      }
+      if (fresh.cases.length !== 1) return json({ error: 'Generation must return exactly one case. Please try again.' }, 503);
       return json(fresh);
     }
 
@@ -64,7 +69,14 @@ Deno.serve(async req => {
     const expired = !!attempt.deadline_at && Date.now() >= new Date(attempt.deadline_at).getTime();
     if (body.action === 'load') return json({ attempt, caseKey: caseData.case_key, encounter: exposed, title: caseData.title, specialty: caseData.specialty, reviewStatus: caseData.review_status, expired });
     if (attempt.status === 'completed') return body.action === 'submit' ? json({ result: attempt.result }) : json({ error: 'This attempt is complete.' }, 409);
-    if (body.action === 'check') return json(checkSafety(body.decisions?.orders ?? [], encounter.currentMedications, encounter.allergies));
+    if (body.action === 'check') {
+      if (!body.decisions) return json({ error: 'Medication orders are required.' }, 400);
+      const rules = caseData.private_rules as ClinicalRules;
+      const apiKey = Deno.env.get('LOVABLE_API_KEY');
+      if (rules.stgReference && !apiKey) return json({ error: 'Case treatment analysis is unavailable. Please try again later.' }, 503);
+      const treatmentComparison = rules.stgReference && apiKey ? await compareSTGTreatment(rules.stgReference, body.decisions, apiKey, encounter) : undefined;
+      return json({ ...checkSafety(body.decisions.orders, encounter.currentMedications, encounter.allergies), treatmentComparison });
+    }
     if (body.action === 'event') {
       if (expired) return json({ error: 'The challenge deadline has passed. Submit the recorded decisions for feedback.' }, 409);
       const id = body.eventId;
