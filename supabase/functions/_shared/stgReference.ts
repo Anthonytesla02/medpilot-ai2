@@ -4,8 +4,12 @@ export interface STGReference { chunkId: string; chapter: string; section: strin
 export interface TreatmentComparison { score: number; feedback: string }
 
 export function attachSTGTreatment(reference: Omit<STGReference, 'treatment'>, quotes: string[]): STGReference {
-  if (!quotes.length || quotes.some(q => !q.trim() || !reference.excerpt.includes(q))) throw new Error('Treatment must quote the retrieved STG summary exactly.');
-  return { ...reference, treatment: quotes };
+  const treatment = quotes.map(q => {
+    const pattern = q.trim().split(/\s+/).map(word => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+');
+    return pattern ? reference.excerpt.match(new RegExp(pattern, 'i'))?.[0] : undefined;
+  });
+  if (!treatment.length || treatment.some(q => !q)) throw new Error('Treatment must quote the retrieved STG summary exactly.');
+  return { ...reference, treatment: treatment.filter((q): q is string => typeof q === 'string') };
 }
 
 export async function compareSTGTreatment(reference: STGReference, decisions: Decisions, apiKey: string, patientContext: unknown): Promise<TreatmentComparison> {

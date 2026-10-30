@@ -158,14 +158,17 @@ IMPORTANT: Return ONLY valid JSON, no additional text.`;
       // Remove markdown code blocks if present
       const cleanedContent = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
       if (structured) {
-        const templates = buildGeneratedTemplates(GeneratedCasesSchema.parse(JSON.parse(cleanedContent)), reference);
+        const parsed = GeneratedCasesSchema.parse(JSON.parse(cleanedContent));
+        // Keep the answer source-owned even when the model reformats or paraphrases its quotations.
+        // The full summary retains regimen headings, age groups and alternatives for contextual comparison.
+        const templates = buildGeneratedTemplates({ cases: parsed.cases.map(c => ({ ...c, treatmentQuotes: [reference.excerpt] })) }, reference);
         const { data: savedCases, error: saveError } = await supabase.from('clinical_case_versions').insert(templates.map(t => ({ case_key: t.key, version: 1, title: t.title, specialty: t.specialty, encounter: t.encounter, private_rules: t.rules, source_references: [{ chunkId: reference.chunkId, chapter: reference.chapter, section: reference.section, page: reference.page, kind: 'stored_stg_summary' }], review_status: 'ai_draft' }))).select('id, case_key, title, specialty, review_status, encounter');
         if (saveError) throw saveError;
         return new Response(JSON.stringify({ cases: (savedCases ?? []).map(c => ({ id: c.id, key: c.case_key, title: c.title, specialty: c.specialty, reviewStatus: c.review_status, difficulty: c.encounter.difficulty, characters: c.encounter.characters, emergency: false, procedural: false })) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
       caseData = DraftSchema.parse(JSON.parse(cleanedContent));
     } catch (parseError) {
-      console.error("Failed to parse AI response:", content);
+      console.error("Failed to validate generated case:", parseError instanceof Error ? parseError.message : 'Invalid structure');
       throw new Error("Failed to parse case study response");
     }
 
