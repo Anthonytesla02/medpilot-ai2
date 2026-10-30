@@ -72,7 +72,7 @@ Deno.serve(async req => {
     if (body.action === 'check') {
       if (!body.decisions) return json({ error: 'Medication orders are required.' }, 400);
       const rules = caseData.private_rules as ClinicalRules;
-      const apiKey = Deno.env.get('LOVABLE_API_KEY');
+      const apiKey = Deno.env.get('GROQ_API_KEY');
       if (rules.stgReference && !apiKey) return json({ error: 'Case treatment analysis is unavailable. Please try again later.' }, 503);
       const treatmentComparison = rules.stgReference && apiKey ? await compareSTGTreatment(rules.stgReference, body.decisions, apiKey, encounter) : undefined;
       return json({ ...checkSafety(body.decisions.orders, encounter.currentMedications, encounter.allergies), treatmentComparison });
@@ -106,7 +106,7 @@ Deno.serve(async req => {
       decisions.actions = events.filter(e => ['action', 'finding'].includes(e.kind)).map(e => e.id);
       decisions.procedures = events.filter(e => e.kind === 'procedure').map(e => e.id);
       const rules = caseData.private_rules as ClinicalRules;
-      const apiKey = Deno.env.get('LOVABLE_API_KEY');
+      const apiKey = Deno.env.get('GROQ_API_KEY');
       if (rules.stgReference && !apiKey) return json({ error: 'STG treatment comparison is unavailable. Please retry later.' }, 503);
       const comparison = rules.stgReference && apiKey ? await compareSTGTreatment(rules.stgReference, decisions, apiKey, { ...encounter, diagnosis: rules.requirements.find(r => r.type === 'diagnosis')?.label, recordedActions: decisions.actions.map(id => encounter.actions.find(a => a.id === id)?.label).filter(Boolean) }) : undefined;
       const result = evaluateAttempt(encounter, rules, decisions, attempt.mode, caseData.review_status === 'clinically_reviewed', expired, comparison);
