@@ -3,6 +3,7 @@
 - [ ] Always show source-linked STG treatment after submission and compare entered treatment against the same private reference.
 - [ ] Update PAYSTACK_SECRET_KEY and RESEND_API_KEY through the secure replacement form.
 - [ ] Check the remixed project's empty migration setup and safely resolve copied migration history.
+- [ ] Fix /cases errors, keep exactly one generated case, and analyze all free-text medication orders against the case only on Check.
 - [x] Generate fresh structured AI draft encounters on case-study refresh while preserving medication orders and saved attempts; verified generation, prescribing, reload persistence and completion while signed in.
 
 - [x] Research authoritative drug interaction sources and record evidence and coverage limitations.
