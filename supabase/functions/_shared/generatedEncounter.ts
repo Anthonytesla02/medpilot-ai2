@@ -23,7 +23,7 @@ export const GeneratedCasesSchema = z.object({ cases: z.array(z.object({
 export function buildGeneratedTemplates(data: z.infer<typeof GeneratedCasesSchema>, reference: Omit<STGReference, 'treatment'>): ClinicalTemplate[] {
   return data.cases.map(({ diagnosis, diagnosisAliases, explanation, treatmentQuotes, title, specialty, ...encounter }) => ({
     key: `ai-${crypto.randomUUID()}`, title, specialty,
-    encounter: { ...encounter, procedures: [], sources: [] },
+    encounter: { ...encounter, procedures: [], sources: [] } as unknown as ClinicalTemplate['encounter'],
     rules: {
       version: 'ai-draft-v1',
       stgReference: attachSTGTreatment(reference, treatmentQuotes),
