@@ -126,7 +126,9 @@ IMPORTANT: Return ONLY valid JSON, no additional text.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
+        model: "openai/gpt-oss-120b",
+        reasoning_format: "parsed",
+        max_tokens: 16384,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: structured ? 'Generate one fresh structured case study with verbatim STG treatmentQuotes. Return only JSON.' : `Generate a case study for ${selectedIllness}. Return only JSON.` }
