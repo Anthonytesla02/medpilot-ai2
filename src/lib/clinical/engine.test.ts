@@ -58,6 +58,11 @@ describe('clinical simulation rules', () => {
     const t = clinicalTemplates.find(t => t.key === 'child-diarrhoea');
     expect(t?.encounter.characters).toHaveLength(2); expect(t?.encounter.characters.filter(c => c.primary).map(c => c.name)).toEqual(['Ama Boateng']);
   });
+  it('limits interactive challenge templates to the supported emergency categories', () => {
+    const challengeTemplates = clinicalTemplates.filter(template => template.encounter.scene);
+    expect(challengeTemplates.map(template => template.key)).toEqual(['medication-review', 'superficial-wound', 'anaphylaxis']);
+    expect(challengeTemplates.every(template => ['trauma', 'medical_emergency', 'medication_emergency'].includes(template.encounter.scene?.category ?? ''))).toBe(true);
+  });
   it('a wrong diagnosis and no interventions does not fabricate deterioration', () => {
     const t = clinicalTemplates[0]; const d = emptyDecisions(); d.diagnosis = 'malaria';
     const result = evaluateAttempt(t.encounter, t.rules, d, 'learning', false);
@@ -67,6 +72,26 @@ describe('clinical simulation rules', () => {
     const t = clinicalTemplates[1]; const d = emptyDecisions(); d.procedures = ['dress', 'rinse', 'alcohol-wound'];
     const result = evaluateAttempt(t.encounter, t.rules, d, 'challenge', true);
     expect(result.criticalErrors.length).toBeGreaterThan(0); expect(result.badgeIds).toEqual([]);
+  });
+  it('scores actual supply and body-region interactions, and records incorrect applications', () => {
+    const t = clinicalTemplates[1];
+    const d = emptyDecisions();
+    d.diagnosis = 'superficial cut';
+    d.actions = ['aftercare', 'red-flags'];
+    const steps = ['assess-wound', 'clean-hands', 'pressure', 'rinse', 'dress'];
+    const validEvents = steps.map(id => ({
+      id, kind: 'procedure', at: '2026-10-31T10:00:00.000Z',
+      ...(t.rules.procedureTargets?.[id] ? { targetRegion: 'forearm', targetCorrect: true } : {}),
+      ...(t.rules.procedureSupplies?.[id] ? { supplyId: t.rules.procedureSupplies[id], supplyCorrect: true } : {}),
+    }));
+    d.procedures = steps;
+    const correct = evaluateAttempt(t.encounter, t.rules, d, 'challenge', false, false, undefined, validEvents);
+    const wrongEvents = validEvents.map(event => event.id === 'pressure' ? { ...event, targetRegion: 'hand', targetCorrect: false } : event);
+    const wrong = evaluateAttempt(t.encounter, t.rules, d, 'challenge', false, false, undefined, wrongEvents);
+    expect(correct.rows.find(row => row.id === 'pressure')?.correct).toBe(true);
+    expect(wrong.rows.find(row => row.id === 'pressure')?.correct).toBe(false);
+    expect(wrong.procedureErrors).toHaveLength(1);
+    expect(wrong.score).toBeLessThan(correct.score);
   });
   it('uses case-specific emergency configuration and records incomplete expired challenges', () => {
     const t = clinicalTemplates[3]; const result = evaluateAttempt(t.encounter, t.rules, emptyDecisions(), 'challenge', false, true);

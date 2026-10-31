@@ -1,5 +1,5 @@
 import { drugInteractionReferences } from './drugInteractions.ts';
-import { normalize, performanceBand, type Decisions, type Encounter, type ClinicalRules } from './clinical.ts';
+import { normalize, performanceBand, type ClinicalEvent, type Decisions, type Encounter, type ClinicalRules } from './clinical.ts';
 import type { TreatmentComparison } from './stgReference.ts';
 
 export function checkSafety(orders: Decisions['orders'], existing: string[], allergies: string[]) {
@@ -23,13 +23,20 @@ export function checkSafety(orders: Decisions['orders'], existing: string[], all
   return { alerts, unknownPairs, reviewStatus: 'sourced_needs_clinical_review', doseValidation: 'No complete dosing reference is available; unspecified doses and routes are not validated.' };
 }
 
-export function evaluateAttempt(encounter: Encounter, rules: ClinicalRules, decisions: Decisions, mode: string, reviewed: boolean, expired = false, treatmentComparison?: TreatmentComparison) {
+export function evaluateAttempt(encounter: Encounter, rules: ClinicalRules, decisions: Decisions, mode: string, reviewed: boolean, expired = false, treatmentComparison?: TreatmentComparison, events: ClinicalEvent[] = []) {
   const safety = checkSafety(decisions.orders, encounter.currentMedications, encounter.allergies);
   const rows = rules.requirements.map(r => {
     let correct = false;
     if (r.type === 'diagnosis') correct = (r.aliases ?? []).some(a => normalize(a) === normalize(decisions.diagnosis));
     if (r.type === 'action') correct = decisions.actions.includes(r.id);
-    if (r.type === 'procedure') correct = decisions.procedures.includes(r.id);
+    if (r.type === 'procedure') {
+      const targetedEvents = events.filter(e => e.kind === 'procedure' && e.id === r.id);
+      const target = rules.procedureTargets?.[r.id];
+      const supply = rules.procedureSupplies?.[r.id];
+      correct = targetedEvents.length
+        ? targetedEvents.some(e => (target ? e.targetRegion === target : e.targetCorrect !== false) && (supply ? e.supplyId === supply : e.supplyCorrect !== false))
+        : !target && !supply && decisions.procedures.includes(r.id);
+    }
     if (r.type === 'medication') correct = decisions.orders.some(o => normalize(o.ingredient) === normalize(r.ingredient ?? '') && o.status === 'administered' && (!r.dose || normalize(o.dose) === normalize(r.dose)) && (!r.route || normalize(o.route) === normalize(r.route)) && (!r.frequency || normalize(o.frequency) === normalize(r.frequency)) && (!r.duration || normalize(o.duration) === normalize(r.duration)));
     return { id: r.id, label: r.label, dimension: r.dimension, possible: r.points, earned: correct ? r.points : 0, correct, essential: !!r.essential };
   });
@@ -39,8 +46,12 @@ export function evaluateAttempt(encounter: Encounter, rules: ClinicalRules, deci
   }
   const criticalErrors = safety.alerts.filter(a => a.administered && (a.category === 'contraindicated' || a.category === 'allergy')).map(a => a.risk);
   for (const p of decisions.procedures) if (rules.criticalProcedures?.includes(p)) criticalErrors.push(encounter.procedures.find(x => x.id === p)?.rationale ?? 'Unsupported procedural action.');
+  const procedureErrors = events.filter(e => e.kind === 'procedure' && (e.targetCorrect === false || e.supplyCorrect === false)).map(e => {
+    const step = encounter.procedures.find(p => p.id === e.id)?.label ?? 'Procedure';
+    return `${step}: the selected supply or application area did not match this case.`;
+  });
   const expectedOrder = rules.procedureOrder ?? [];
-  const observed = decisions.procedures.filter(p => expectedOrder.includes(p));
+  const observed = [...new Set(decisions.procedures)].filter(p => expectedOrder.includes(p));
   const orderCorrect = observed.every((p, i) => i === 0 || expectedOrder.indexOf(p) > expectedOrder.indexOf(observed[i - 1]));
   if (!orderCorrect) criticalErrors.push('Procedural sequence requires reassessment; earlier steps were performed after later steps.');
   const essentialComplete = rows.filter(r => r.essential).every(r => r.correct);
@@ -48,7 +59,7 @@ export function evaluateAttempt(encounter: Encounter, rules: ClinicalRules, deci
   const total = rows.reduce((sum, r) => sum + r.possible, 0);
   const earned = rows.reduce((sum, r) => sum + r.earned, 0);
   // Draft reference flags do not manufacture penalties or adverse events.
-  const score = total ? Math.round(earned / total * 100) : 0;
+  const score = total ? Math.max(0, Math.round(earned / total * 100) - Math.min(20, procedureErrors.length * 5)) : 0;
   const successfulManagement = essentialComplete && criticalErrors.length === 0;
   const outcome = criticalErrors.length ? rules.outcome.unsafe : successfulManagement ? rules.outcome.success : rules.outcome.incomplete;
   const dimensions = [...new Set(rows.map(r => r.dimension))].map(name => {
@@ -57,7 +68,7 @@ export function evaluateAttempt(encounter: Encounter, rules: ClinicalRules, deci
     return { name, score: max ? Math.round(selected.reduce((s, r) => s + r.earned, 0) / max * 100) : 0 };
   });
   const aiDraft = rules.version.startsWith('ai-draft-');
-  const eligible = reviewed && !aiDraft && safety.unknownPairs.length === 0 && safety.alerts.every(a => a.category !== 'allergy' && a.category !== 'contraindicated') && decisions.orders.length === 0;
+  const eligible = reviewed && !aiDraft && safety.unknownPairs.length === 0 && procedureErrors.length === 0 && safety.alerts.every(a => a.category !== 'allergy' && a.category !== 'contraindicated') && decisions.orders.length === 0;
   const badgeIds = eligible && score === 100 && !criticalErrors.length ? ['flawless-case', ...(expectedOrder.length && orderCorrect ? ['precision-practitioner'] : []), ...(encounter.emergencySeconds && !expired ? ['emergency-response'] : [])] : [];
-  return { score, band: performanceBand(score), dimensions, rows, criticalErrors, safety, outcome, successfulManagement, stgReference: rules.stgReference, treatmentComparison, timeline: rules.timeline.map(t => ({ label: t.label, text: successfulManagement ? t.complete : t.incomplete })), explanation: rules.explanation.replace(/^Unverified AI-generated educational draft\.\s*/, '').replace(/\s*Medication selection, doses and patient outcomes require qualified clinical review\.$/, ''), correctManagement: rules.requirements.map(r => ({ label: r.label.replace(/^AI draft working diagnosis:/, 'Diagnosis:') + (r.type === 'medication' ? [r.dose, r.route, r.frequency, r.duration].filter(Boolean).map(x => ` ${x}`).join('') : ''), missed: !rows.find(x => x.id === r.id)?.correct })), eligible, badgeIds, points: eligible && mode === 'challenge' ? score : 0, reviewStatus: aiDraft ? 'ai_draft' : reviewed ? 'clinically_reviewed' : 'sourced_needs_clinical_review', expired, rulesetVersion: rules.version, limitation: aiDraft ? '' : reviewed ? safety.doseValidation : 'Source-backed draft: provisional learning feedback only. Clinical outcomes, dosing, competitive scores and badges require qualified review.' };
+  return { score, band: performanceBand(score), dimensions, rows, criticalErrors, procedureErrors, safety, outcome, successfulManagement, stgReference: rules.stgReference, treatmentComparison, timeline: rules.timeline.map(t => ({ label: t.label, text: successfulManagement ? t.complete : t.incomplete })), explanation: rules.explanation.replace(/^Unverified AI-generated educational draft\.\s*/, '').replace(/\s*Medication selection, doses and patient outcomes require qualified clinical review\.$/, ''), correctManagement: rules.requirements.map(r => ({ label: r.label.replace(/^AI draft working diagnosis:/, 'Diagnosis:') + (r.type === 'medication' ? [r.dose, r.route, r.frequency, r.duration].filter(Boolean).map(x => ` ${x}`).join('') : ''), missed: !rows.find(x => x.id === r.id)?.correct })), eligible, badgeIds, points: eligible && mode === 'challenge' ? score : 0, reviewStatus: aiDraft ? 'ai_draft' : reviewed ? 'clinically_reviewed' : 'sourced_needs_clinical_review', expired, rulesetVersion: rules.version, limitation: aiDraft ? '' : reviewed ? safety.doseValidation : 'Source-backed draft: provisional learning feedback only. Clinical outcomes, dosing, competitive scores and badges require qualified review.' };
 }
