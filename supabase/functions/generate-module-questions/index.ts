@@ -79,7 +79,9 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: 'openai/gpt-oss-120b',
+        reasoning_format: "parsed",
+        max_tokens: 16384,
         messages: [
           {
             role: 'system',
