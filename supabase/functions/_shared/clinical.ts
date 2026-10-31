@@ -3,8 +3,12 @@ export interface Finding { id: string; label: string; kind: 'history' | 'examina
 export interface Order { id: string; ingredient: string; dose: string; route: string; frequency: string; duration: string; status: 'prescribed' | 'administered'; acknowledged: boolean }
 export interface Decisions { diagnosis: string; differentials: string; orders: Order[]; actions: string[]; procedures: string[] }
 export interface Requirement { id: string; label: string; dimension: string; points: number; essential?: boolean; type: 'diagnosis' | 'action' | 'procedure' | 'medication'; aliases?: string[]; ingredient?: string; dose?: string; route?: string; frequency?: string; duration?: string }
-export interface ClinicalRules { version: string; requirements: Requirement[]; stgReference?: import('./stgReference.ts').STGReference; procedureOrder?: string[]; criticalProcedures?: string[]; outcome: { success: string; incomplete: string; unsafe: string }; timeline: { label: string; complete: string; incomplete: string }[]; explanation: string }
-export interface Encounter { characters: Character[]; complaint: string; narrative: string; symptoms: string[]; history: string[]; currentMedications: string[]; allergies: string[]; vitals: Record<string, string>; findings: Finding[]; actions: { id: string; label: string }[]; procedures: { id: string; label: string; rationale: string }[]; emergencySeconds?: number; difficulty: string; sources: { name: string; url: string }[] }
+export type ChallengeCategory = 'trauma' | 'medical_emergency' | 'medication_emergency';
+export type BodyRegion = 'head' | 'throat' | 'chest' | 'abdomen' | 'arm' | 'forearm' | 'hand' | 'leg';
+export interface ClinicalScene { category: ChallengeCategory; focus: 'wound' | 'breathing' | 'medication'; bodyRegion?: BodyRegion; injury?: 'cut' | 'burn' | 'rash' | 'none' }
+export interface ClinicalEvent { id: string; kind: string; at: string; targetRegion?: string; supplyId?: string; targetCorrect?: boolean; supplyCorrect?: boolean }
+export interface ClinicalRules { version: string; requirements: Requirement[]; stgReference?: import('./stgReference.ts').STGReference; procedureOrder?: string[]; procedureTargets?: Record<string, string>; procedureSupplies?: Record<string, string>; criticalProcedures?: string[]; outcome: { success: string; incomplete: string; unsafe: string }; timeline: { label: string; complete: string; incomplete: string }[]; explanation: string }
+export interface Encounter { characters: Character[]; complaint: string; narrative: string; symptoms: string[]; history: string[]; currentMedications: string[]; allergies: string[]; vitals: Record<string, string>; findings: Finding[]; actions: { id: string; label: string }[]; procedures: { id: string; label: string; rationale: string }[]; scene?: ClinicalScene; emergencySeconds?: number; difficulty: string; sources: { name: string; url: string }[] }
 export interface ClinicalTemplate { key: string; title: string; specialty: string; encounter: Encounter; rules: ClinicalRules }
 export const emptyDecisions = (): Decisions => ({ diagnosis: '', differentials: '', orders: [], actions: [], procedures: [] });
 export const normalize = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[–—-]/g, ' ').replace(/[^a-z0-9 .]/g, '').replace(/\s+/g, ' ').trim();
@@ -17,6 +21,7 @@ export const clinicalTemplates: ClinicalTemplate[] = [
       characters: [{ id: 'patient', name: 'Kwame Mensah', age: 45, avatar: 'man', role: 'Patient', primary: true }],
       complaint: 'A new antibiotic prescription and muscle discomfort', narrative: 'Kwame presents with a newly issued clarithromycin prescription. He takes simvastatin every evening and asks whether he can take both. He reports mild muscle discomfort, with no established diagnosis of muscle injury.',
       symptoms: ['Mild muscle discomfort', 'New prescription query'], history: ['Dyslipidaemia'], currentMedications: ['simvastatin'], allergies: [],
+      scene: { category: 'medication_emergency', focus: 'medication' },
       vitals: { 'Pulse': '78 /min', 'BP': '126/78 mmHg', 'Temperature': '36.8 °C' },
       findings: [
         { id: 'medication-history', label: 'Review current medicines', kind: 'history', answer: 'Simvastatin nightly. Clarithromycin has been prescribed but has not yet been started. No other medicines are reported.' },
@@ -45,6 +50,7 @@ export const clinicalTemplates: ClinicalTemplate[] = [
       characters: [{ id: 'patient', name: 'Akosua Owusu', age: 32, avatar: 'woman', role: 'Patient', primary: true }],
       complaint: 'A small superficial forearm cut', narrative: 'Akosua has a small superficial cut on her forearm from a clean edge at work. There is mild bleeding, normal movement and sensation, and no obvious embedded object. She asks for help with initial care.',
       symptoms: ['Mild bleeding', 'Local discomfort'], history: ['No relevant medical history reported'], currentMedications: [], allergies: ['ibuprofen'],
+      scene: { category: 'trauma', focus: 'wound', bodyRegion: 'forearm', injury: 'cut' },
       vitals: { 'Pulse': '76 /min', 'BP': '118/74 mmHg', 'Temperature': '36.7 °C' },
       findings: [{ id: 'wound-assessment', label: 'Assess depth, movement and sensation', kind: 'examination', answer: 'Small superficial cut. Movement and sensation are intact. No embedded object is seen; bleeding is mild.' }, { id: 'tetanus-history', label: 'Ask about immunisation and contamination', kind: 'history', answer: 'She cannot recall her last tetanus vaccination. Immunisation needs clinical assessment according to local guidance.' }],
       actions: [{ id: 'aftercare', label: 'Give dressing and wound aftercare advice' }, { id: 'red-flags', label: 'Explain infection and uncontrolled-bleeding red flags' }, { id: 'immunisation-review', label: 'Arrange immunisation review if indicated' }],
@@ -62,7 +68,10 @@ export const clinicalTemplates: ClinicalTemplate[] = [
       { id: 'diagnosis', label: 'Recognize a superficial cut', type: 'diagnosis', dimension: 'Diagnosis', points: 20, aliases: ['superficial cut', 'superficial wound', 'minor cut', 'minor laceration', 'laceration', 'cut'] },
       ...['assess-wound', 'clean-hands', 'pressure', 'rinse', 'dress'].map(id => ({ id, label: ({ 'assess-wound': 'Assess the wound', 'clean-hands': 'Clean hands', pressure: 'Control mild bleeding', rinse: 'Rinse with water', dress: 'Cover with a clean dressing' } as Record<string, string>)[id], type: 'procedure' as const, dimension: 'Procedure', points: 10, essential: true })),
       { id: 'aftercare', label: 'Provide aftercare', type: 'action', dimension: 'Follow-up', points: 15, essential: true }, { id: 'red-flags', label: 'Explain red flags', type: 'action', dimension: 'Safety', points: 15 },
-    ], procedureOrder: ['assess-wound', 'clean-hands', 'pressure', 'rinse', 'dress'], criticalProcedures: ['alcohol-wound', 'remove-embedded'],
+    ], procedureOrder: ['assess-wound', 'clean-hands', 'pressure', 'rinse', 'dress'],
+      procedureTargets: { pressure: 'forearm', rinse: 'forearm', dress: 'forearm', 'alcohol-wound': 'forearm', 'remove-embedded': 'forearm' },
+      procedureSupplies: { pressure: 'clean-cloth', rinse: 'clean-water', dress: 'sterile-dressing', 'alcohol-wound': 'alcohol' },
+      criticalProcedures: ['alcohol-wound', 'remove-embedded'],
       outcome: { success: 'Appropriate initial wound care documented', incomplete: 'Initial wound care incomplete', unsafe: 'Unsupported procedural action recorded; reassess care' },
       timeline: [{ label: 'Initial care', complete: 'Assessment, bleeding control, rinsing and dressing have been documented.', incomplete: 'One or more initial-care steps are missing.' }, { label: 'Aftercare', complete: 'The wound is covered and aftercare is arranged.', incomplete: 'Further care is required to complete the plan.' }, { label: 'Following days', complete: 'Healing requires observation. Infection or full recovery is not predicted by this draft model.', incomplete: 'There is insufficient evidence to predict healing or infection. Review the omitted actions.' }],
       explanation: 'For a small cut, stop bleeding, clean with water, and cover with a plaster or dressing. Do not remove embedded objects. Uncontrolled bleeding, serious injuries or infection concerns require medical help. Immunisation decisions require local guidance.',
@@ -97,6 +106,7 @@ export const clinicalTemplates: ClinicalTemplate[] = [
       characters: [{ id: 'patient', name: 'Efua Asante', age: 32, avatar: 'woman', role: 'Patient', primary: true }],
       complaint: 'Sudden wheeze, swelling and faintness', narrative: 'Efua develops sudden lip swelling, wheeze and faintness after a new exposure. There are airway, breathing and circulation concerns. This timed educational scenario assesses recognition and escalation, not independent prescribing competence.',
       symptoms: ['Lip swelling', 'Wheeze', 'Faintness'], history: ['New exposure shortly before symptoms'], currentMedications: [], allergies: ['Suspected new allergy — trigger not yet established'],
+      scene: { category: 'medical_emergency', focus: 'breathing', bodyRegion: 'chest', injury: 'none' },
       vitals: { 'Pulse': '118 /min', 'BP': '88/56 mmHg', 'SpO₂': '91%', 'Respiration': '28 /min' },
       findings: [{ id: 'abc-assessment', label: 'Assess airway, breathing and circulation', kind: 'examination', answer: 'Airway swelling, wheeze and hypotension with rapid onset indicate an urgent systemic reaction. Skin signs need not always be present.' }, { id: 'exposure', label: 'Ask about the exposure', kind: 'history', answer: 'Symptoms started shortly after a new food exposure. Identifying the precise allergen must not delay urgent care.' }],
       actions: [{ id: 'call-help', label: 'Call emergency help immediately' }, { id: 'im-adrenaline', label: 'Prioritise IM adrenaline using the reviewed local protocol' }, { id: 'reassess-abc', label: 'Reassess ABC and escalate persistent compromise' }, { id: 'allergy-followup', label: 'Arrange allergy assessment and emergency-plan advice' }], procedures: [], emergencySeconds: 180, difficulty: 'hard',

@@ -1,13 +1,13 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { z } from 'npm:zod@3';
-import { emptyDecisions, type Encounter, type ClinicalRules } from '../_shared/clinical.ts';
+import { clinicalTemplates, emptyDecisions, type ClinicalEvent, type Encounter, type ClinicalRules } from '../_shared/clinical.ts';
 import { checkSafety, evaluateAttempt } from '../_shared/evaluate.ts';
 import { compareSTGTreatment } from '../_shared/stgReference.ts';
 
 const orderSchema = z.object({ id: z.string().max(100), ingredient: z.string().min(1).max(100), dose: z.string().max(100), route: z.string().max(100), frequency: z.string().max(100), duration: z.string().max(100), status: z.enum(['prescribed', 'administered']), acknowledged: z.boolean() });
 const decisionsSchema = z.object({ diagnosis: z.string().max(500), differentials: z.string().max(1000), orders: z.array(orderSchema).max(30), actions: z.array(z.string().max(100)).max(100), procedures: z.array(z.string().max(100)).max(30) });
-const bodySchema = z.object({ action: z.enum(['library', 'start', 'load', 'event', 'save', 'check', 'submit', 'profile']), caseKey: z.string().max(100).optional(), attemptId: z.string().uuid().optional(), mode: z.enum(['learning', 'challenge']).optional(), revision: z.number().int().nonnegative().optional(), eventId: z.string().max(100).optional(), eventKind: z.enum(['finding', 'action', 'procedure']).optional(), decisions: decisionsSchema.optional(), submissionKey: z.string().uuid().optional() });
+const bodySchema = z.object({ action: z.enum(['library', 'start', 'load', 'event', 'save', 'check', 'submit', 'profile']), caseKey: z.string().max(100).optional(), attemptId: z.string().uuid().optional(), mode: z.enum(['learning', 'challenge']).optional(), revision: z.number().int().nonnegative().optional(), eventId: z.string().max(100).optional(), eventKind: z.enum(['finding', 'action', 'procedure']).optional(), targetRegion: z.string().max(40).optional(), supplyId: z.string().max(80).optional(), decisions: decisionsSchema.optional(), submissionKey: z.string().uuid().optional() });
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
 Deno.serve(async req => {
@@ -30,6 +30,40 @@ Deno.serve(async req => {
     const db = createClient(url, key);
 
     if (body.action === 'library') {
+      if (body.mode === 'challenge') {
+        // Only explicitly scoped, source-backed encounters are offered in the interactive Challenge.
+        // Broader AI-generated clinical case studies remain available in Learning.
+        const templates = clinicalTemplates.filter(template => !!template.encounter.scene);
+        const caseKeys = templates.map(template => template.key);
+        const seedRows = templates.map(template => ({
+          case_key: template.key,
+          version: 1,
+          title: template.title,
+          specialty: template.specialty,
+          encounter: template.encounter,
+          private_rules: template.rules,
+          source_references: template.encounter.sources.map(source => ({ ...source, kind: 'curated_source' })),
+          review_status: 'sourced_needs_clinical_review',
+        }));
+        const { error: seedError } = await db.from('clinical_case_versions').upsert(seedRows, { onConflict: 'case_key,version', ignoreDuplicates: true });
+        if (seedError) throw seedError;
+        const { data: challengeCases, error: listError } = await db.from('clinical_case_versions')
+          .select('id, case_key, title, specialty, review_status, encounter')
+          .in('case_key', caseKeys)
+          .order('version', { ascending: false });
+        if (listError) throw listError;
+        const latestByKey = new Map<string, typeof challengeCases[number]>();
+        for (const item of challengeCases ?? []) if (!latestByKey.has(item.case_key)) latestByKey.set(item.case_key, item);
+        return json({ cases: [...latestByKey.values()].map(item => {
+          const encounter = item.encounter as Encounter;
+          return {
+            id: item.id, key: item.case_key, title: item.title, specialty: item.specialty,
+            reviewStatus: item.review_status, difficulty: encounter.difficulty,
+            characters: encounter.characters, emergency: !!encounter.emergencySeconds,
+            procedural: encounter.procedures.length > 0, category: encounter.scene?.category,
+          };
+        }) });
+      }
       const { data: fresh, error: generationError } = await auth.functions.invoke('generate-case-study', { body: { format: 'structured' }, headers: { Authorization: `Bearer ${token}` } });
       if (generationError || fresh?.error || !Array.isArray(fresh?.cases)) {
         const details = generationError && 'context' in generationError && generationError.context instanceof Response ? await generationError.context.json().catch(() => null) : null;
@@ -52,6 +86,12 @@ Deno.serve(async req => {
       const { data: caseData, error } = await db.from('clinical_case_versions').select('*').eq('case_key', body.caseKey ?? '').order('version', { ascending: false }).limit(1).single();
       if (error) return json({ error: 'Case not found. Reload the case library.' }, 404);
       const encounter = caseData.encounter as Encounter;
+      if (body.mode === 'challenge') {
+        const supportedTemplate = clinicalTemplates.find(template => template.key === caseData.case_key && template.encounter.scene);
+        if (!supportedTemplate?.encounter.scene || !encounter.scene || encounter.scene.category !== supportedTemplate.encounter.scene.category) {
+          return json({ error: 'This case is not enabled for interactive Challenge mode.' }, 400);
+        }
+      }
       const deadline = body.mode === 'challenge' && encounter.emergencySeconds ? new Date(Date.now() + encounter.emergencySeconds * 1000).toISOString() : null;
       const { data: attempt, error: startError } = await db.from('clinical_attempts').insert({ user_id: userId, case_version_id: caseData.id, mode: body.mode ?? 'learning', decisions: emptyDecisions(), deadline_at: deadline }).select('*').single();
       if (startError) throw startError;
@@ -64,7 +104,7 @@ Deno.serve(async req => {
     const { data: caseData, error: caseError } = await db.from('clinical_case_versions').select('*').eq('id', attempt.case_version_id).single();
     if (caseError) throw caseError;
     const encounter = caseData.encounter as Encounter;
-    const events = attempt.events as { id: string; kind: string; at: string }[];
+    const events = attempt.events as ClinicalEvent[];
     const exposed = { ...encounter, findings: encounter.findings.map(f => ({ ...f, answer: events.some(e => e.id === f.id && e.kind === 'finding') ? f.answer : undefined })) };
     const expired = !!attempt.deadline_at && Date.now() >= new Date(attempt.deadline_at).getTime();
     if (body.action === 'load') return json({ attempt, caseKey: caseData.case_key, encounter: exposed, title: caseData.title, specialty: caseData.specialty, reviewStatus: caseData.review_status, expired });
@@ -83,12 +123,27 @@ Deno.serve(async req => {
       const kind = body.eventKind;
       const valid = kind === 'finding' ? encounter.findings.some(f => f.id === id) : kind === 'action' ? encounter.actions.some(a => a.id === id) : kind === 'procedure' ? encounter.procedures.some(p => p.id === id) : false;
       if (!id || !kind || !valid) return json({ error: 'Unknown clinical action.' }, 400);
-      if (events.some(e => e.id === id && e.kind === kind)) return json({ attempt, answer: encounter.findings.find(f => f.id === id)?.answer });
-      const nextEvents = [...events, { id, kind, at: new Date().toISOString() }];
+      const priorEvents = events.filter(e => e.id === id && e.kind === kind);
+      if (priorEvents.length && (kind !== 'procedure' || priorEvents.some(e => e.targetCorrect !== false && e.supplyCorrect !== false))) {
+        const last = priorEvents[priorEvents.length - 1];
+        return json({ attempt, answer: encounter.findings.find(f => f.id === id)?.answer, targetCorrect: last.targetCorrect, supplyCorrect: last.supplyCorrect });
+      }
+      const rules = caseData.private_rules as ClinicalRules;
+      const expectedTarget = kind === 'procedure' ? rules.procedureTargets?.[id] : undefined;
+      const expectedSupply = kind === 'procedure' ? rules.procedureSupplies?.[id] : undefined;
+      const targetCorrect = !expectedTarget || body.targetRegion === expectedTarget;
+      const supplyCorrect = !expectedSupply || body.supplyId === expectedSupply;
+      const nextEvent: ClinicalEvent = {
+        id, kind, at: new Date().toISOString(),
+        ...(body.targetRegion ? { targetRegion: body.targetRegion } : {}),
+        ...(body.supplyId ? { supplyId: body.supplyId } : {}),
+        ...(kind === 'procedure' ? { targetCorrect, supplyCorrect } : {}),
+      };
+      const nextEvents = [...events, nextEvent];
       const { data: updated, error } = await db.from('clinical_attempts').update({ events: nextEvents, revision: attempt.revision + 1 }).eq('id', attempt.id).eq('revision', attempt.revision).eq('status', 'in_progress').select('*').maybeSingle();
       if (error) throw error;
       if (!updated) return json({ error: 'Attempt changed. Reload and try again.' }, 409);
-      return json({ attempt: updated, answer: encounter.findings.find(f => f.id === id)?.answer, rationale: encounter.procedures.find(p => p.id === id)?.rationale });
+      return json({ attempt: updated, answer: encounter.findings.find(f => f.id === id)?.answer, rationale: encounter.procedures.find(p => p.id === id)?.rationale, targetCorrect, supplyCorrect });
     }
     if (!body.decisions) return json({ error: 'Decisions are required.' }, 400);
     if (body.action === 'save') {
@@ -103,13 +158,13 @@ Deno.serve(async req => {
       // Clinical action credit comes exclusively from recorded, timely server events.
       if (body.revision !== attempt.revision) return json({ error: 'Attempt changed. Reload before submitting.' }, 409);
       const decisions = decisionsSchema.parse(attempt.decisions);
-      decisions.actions = events.filter(e => ['action', 'finding'].includes(e.kind)).map(e => e.id);
-      decisions.procedures = events.filter(e => e.kind === 'procedure').map(e => e.id);
+      decisions.actions = [...new Set(events.filter(e => ['action', 'finding'].includes(e.kind)).map(e => e.id))];
+      decisions.procedures = [...new Set(events.filter(e => e.kind === 'procedure').map(e => e.id))];
       const rules = caseData.private_rules as ClinicalRules;
       const apiKey = Deno.env.get('GROQ_API_KEY');
       if (rules.stgReference && !apiKey) return json({ error: 'STG treatment comparison is unavailable. Please retry later.' }, 503);
       const comparison = rules.stgReference && apiKey ? await compareSTGTreatment(rules.stgReference, decisions, apiKey, { ...encounter, diagnosis: rules.requirements.find(r => r.type === 'diagnosis')?.label, recordedActions: decisions.actions.map(id => encounter.actions.find(a => a.id === id)?.label).filter(Boolean) }) : undefined;
-      const result = evaluateAttempt(encounter, rules, decisions, attempt.mode, caseData.review_status === 'clinically_reviewed', expired, comparison);
+      const result = evaluateAttempt(encounter, rules, decisions, attempt.mode, caseData.review_status === 'clinically_reviewed', expired, comparison, events);
       const { data, error } = await db.rpc('complete_clinical_attempt', { p_attempt_id: attempt.id, p_user_id: userId, p_revision: body.revision ?? -1, p_decisions: decisions, p_result: result, p_submission_key: body.submissionKey, p_badge_ids: result.badgeIds });
       if (error) return json({ error: 'Attempt changed or could not be completed. Reload before retrying.' }, 409);
       return json({ result: data });

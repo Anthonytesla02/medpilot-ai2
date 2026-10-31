@@ -13,8 +13,9 @@ import { PatientPortrait } from '@/components/clinical/PatientPortrait';
 import { MedicationOrders } from '@/components/clinical/MedicationOrders';
 import { InteractionReference } from '@/components/clinical/InteractionReference';
 import { ClinicalResultView } from '@/components/clinical/ClinicalResultView';
+import { ChallengeDashboard, InteractiveChallenge } from '@/components/clinical/ChallengeExperience';
 import { clinicalRequest } from '@/lib/clinical/api';
-import type { SessionData, LibraryCase, Decisions, ClinicalResult, Attempt } from '@/lib/clinical/types';
+import type { SessionData, LibraryCase, Decisions, ClinicalResult, Attempt, BodyRegion } from '@/lib/clinical/types';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import LegacyCaseStudy from './LegacyCaseStudy';
@@ -25,43 +26,58 @@ export default function CaseStudy() {
   const [cases, setCases] = useState<LibraryCase[]>([]); const [session, setSession] = useState<SessionData | null>(null);
   const [mode, setMode] = useState('learning'); const [loading, setLoading] = useState(true); const [busy, setBusy] = useState(false); const [error, setError] = useState('');
   const [tab, setTab] = useState('encounter'); const [legacy, setLegacy] = useState(false); const [tick, setTick] = useState(Date.now()); const [saved, setSaved] = useState(true);
+  const [profileData, setProfileData] = useState<{ attempts: { id: string; mode: string; status: string; title: string; specialty: string; started_at: string; completed_at: string | null; result: ClinicalResult | null }[]; badges: { awarded_at: string; clinical_badge_definitions: { name: string; description: string; rarity: string } }[] }>({ attempts: [], badges: [] });
   const submissionKey = useRef(crypto.randomUUID()); const attemptId = params.get('attempt');
   const [refresh, setRefresh] = useState(0);
-  const pendingLibrary = useRef<Promise<{ cases: LibraryCase[] }> | null>(null);
+  const pendingLibrary = useRef(new Map<string, Promise<{ cases: LibraryCase[] }>>());
   useEffect(() => { if (!authLoading && !user) navigate('/auth'); }, [authLoading, user, navigate]);
   useEffect(() => {
     if (!user) return;
     let active = true; setLoading(true); setError('');
     const load = async () => { try {
       if (attemptId) { const data = await clinicalRequest<SessionData>({ action: 'load', attemptId }); if (active) { setSession(data); setSaved(true); setTab('encounter'); } }
-      else { pendingLibrary.current ??= clinicalRequest<{ cases: LibraryCase[] }>({ action: 'library' }); const data = await pendingLibrary.current; if (active) { setCases(data.cases); setSession(null); } }
+      else {
+        let request = pendingLibrary.current.get(mode);
+        if (!request) {
+          request = clinicalRequest<{ cases: LibraryCase[] }>({ action: 'library', mode });
+          pendingLibrary.current.set(mode, request);
+        }
+        const data = await request;
+        if (active) { setCases(data.cases); setSession(null); }
+        if (mode === 'challenge') {
+          clinicalRequest<typeof profileData>({ action: 'profile' }).then(data => { if (active) setProfileData(data); }).catch(() => undefined);
+        }
+      }
     } catch (e) { if (active) setError(e instanceof Error ? e.message : 'Could not load cases.'); } finally { if (active) setLoading(false); } };
     load(); return () => { active = false; };
-  }, [user, attemptId, refresh]);
+  }, [user, attemptId, refresh, mode]);
   useEffect(() => { const timer = setInterval(() => setTick(Date.now()), 1000); return () => clearInterval(timer); }, []);
   const remaining = session?.attempt.deadline_at ? Math.max(0, Math.ceil((new Date(session.attempt.deadline_at).getTime() - tick) / 1000)) : null;
   const expired = remaining === 0; const disabled = busy || expired || session?.attempt.status === 'completed';
   const failure = (e: unknown) => { setError(e instanceof Error ? e.message : 'Request failed. Please try again.'); };
-  const start = async (key: string) => { setBusy(true); setError(''); try { const data = await clinicalRequest<SessionData>({ action: 'start', caseKey: key, mode }); setSession(data); submissionKey.current = crypto.randomUUID(); setParams({ attempt: data.attempt.id }); } catch (e) { failure(e); } finally { setBusy(false); } };
+  const start = async (key: string, requestedMode = mode) => { setBusy(true); setError(''); try { const data = await clinicalRequest<SessionData>({ action: 'start', caseKey: key, mode: requestedMode }); setSession(data); submissionKey.current = crypto.randomUUID(); setParams({ attempt: data.attempt.id }); } catch (e) { failure(e); } finally { setBusy(false); } };
   const update = (decisions: Decisions) => { setSession(s => s ? { ...s, attempt: { ...s.attempt, decisions } } : s); setSaved(false); };
   const save = async () => { if (!session) return; setBusy(true); setError(''); try { const data = await clinicalRequest<{ attempt: Attempt }>({ action: 'save', attemptId: session.attempt.id, revision: session.attempt.revision, decisions: session.attempt.decisions }); setSession(s => s ? { ...s, attempt: data.attempt } : s); setSaved(true); toast({ title: 'Encounter saved' }); } catch (e) { failure(e); } finally { setBusy(false); } };
-  const event = async (kind: string, id: string) => { if (!session) return; setBusy(true); setError(''); try {
+  const event = async (kind: 'finding' | 'action' | 'procedure', id: string, targetRegion?: BodyRegion, supplyId?: string): Promise<boolean> => { if (!session) return false; setBusy(true); setError(''); try {
     // Persist typed decisions before recording a server-timed clinical action.
     let current = session.attempt;
     if (!saved) { const savedData = await clinicalRequest<{ attempt: Attempt }>({ action: 'save', attemptId: current.id, revision: current.revision, decisions: current.decisions }); current = savedData.attempt; }
-    const data = await clinicalRequest<{ attempt: Attempt; answer?: string; rationale?: string }>({ action: 'event', attemptId: current.id, eventKind: kind, eventId: id });
+    const data = await clinicalRequest<{ attempt: Attempt; answer?: string; rationale?: string; targetCorrect?: boolean; supplyCorrect?: boolean }>({ action: 'event', attemptId: current.id, eventKind: kind, eventId: id, targetRegion, supplyId });
     setSession(s => s ? { ...s, attempt: data.attempt, encounter: { ...s.encounter, findings: s.encounter.findings.map(f => f.id === id && data.answer ? { ...f, answer: data.answer } : f) } } : s); setSaved(true);
-  } catch (e) { failure(e); } finally { setBusy(false); } };
+    const isCorrect = data.targetCorrect !== false && data.supplyCorrect !== false;
+    if (kind === 'procedure' && !isCorrect) toast({ title: 'Action recorded', description: 'That supply or application area did not match this case. You can reconsider and try again.' });
+    return isCorrect;
+  } catch (e) { failure(e); return false; } finally { setBusy(false); } };
   const submit = async () => { if (!session) return; setBusy(true); setError(''); try {
     let current = session.attempt;
     if (!expired && !saved) { const savedData = await clinicalRequest<{ attempt: Attempt }>({ action: 'save', attemptId: current.id, revision: current.revision, decisions: current.decisions }); current = savedData.attempt; setSession(s => s ? { ...s, attempt: current } : s); setSaved(true); }
     const data = await clinicalRequest<{ result: ClinicalResult }>({ action: 'submit', attemptId: current.id, revision: current.revision, decisions: current.decisions, submissionKey: submissionKey.current }); setSession(s => s ? { ...s, attempt: { ...s.attempt, status: 'completed', result: data.result } } : s); setSaved(true);
   } catch (e) { failure(e); } finally { setBusy(false); } };
-  const refreshCases = () => { pendingLibrary.current = null; setCases([]); setRefresh(n => n + 1); };
-  const library = () => { if (!saved && !window.confirm('Leave this encounter without saving your latest entries?')) return; pendingLibrary.current = null; setParams({}); setSession(null); };
+  const refreshCases = () => { pendingLibrary.current.delete(mode); setCases([]); setRefresh(n => n + 1); };
+  const library = () => { if (!saved && !window.confirm('Leave this encounter without saving your latest entries?')) return; const returnMode = session?.attempt.mode ?? mode; setMode(returnMode); pendingLibrary.current.delete(returnMode); setParams({}); setSession(null); };
   if (legacy) return <><div className="p-3 border-b border-border flex flex-wrap items-center justify-between gap-2"><Button variant="ghost" onClick={() => setLegacy(false)}><ArrowLeft className="h-4 w-4 mr-2" />Clinical encounters</Button><Badge variant="outline">AI draft · provisional feedback · no verified points</Badge></div><LegacyCaseStudy /></>;
   if (authLoading) return <PageLoader />;
-  if (loading) return <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4 px-4"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p role="status" className="text-sm text-muted-foreground">{attemptId ? 'Loading your encounter…' : 'Generating a fresh case study…'}</p></div>;
+  if (loading) return <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4 px-4"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p role="status" className="text-sm text-muted-foreground">{attemptId ? 'Loading your encounter…' : mode === 'challenge' ? 'Loading supported challenges…' : 'Generating a fresh case study…'}</p></div>;
   if (!user) return null;
   const recorded = (kind: string, id: string) => !!session?.attempt.events.some(e => e.id === id && e.kind === kind);
   return <div className="min-h-screen bg-background pb-24">
@@ -69,15 +85,33 @@ export default function CaseStudy() {
     <main className="max-w-7xl mx-auto px-4 sm:px-8 py-6">
       {error && <div role="alert" className="border-l-2 border-destructive p-3 mb-5 text-sm text-destructive flex flex-wrap gap-3 items-center">{error}<Button variant="outline" size="sm" onClick={() => attemptId ? window.location.reload() : refreshCases()}>Try again</Button></div>}
       {!session ? <>
-        <div className="flex flex-wrap justify-between items-end gap-4 mb-7"><div><p className="text-xs uppercase text-primary mb-2">Practice / Case studies</p><h1 className="text-3xl font-bold">Clinical encounters</h1><p className="text-sm text-muted-foreground mt-2">Synthetic patients · AI drafts · educational use only</p></div><div className="flex flex-wrap gap-3"><Button variant="outline" onClick={refreshCases} disabled={busy}><RefreshCw className="h-4 w-4 mr-2" />New case</Button><Tabs value={mode} onValueChange={setMode}><TabsList><TabsTrigger value="learning">Learning</TabsTrigger><TabsTrigger value="challenge">Challenge</TabsTrigger></TabsList></Tabs></div></div>
-        <Tabs defaultValue="cases"><TabsList className="mb-6"><TabsTrigger value="cases"><Stethoscope className="h-4 w-4 mr-2" />Cases</TabsTrigger><TabsTrigger value="references"><ShieldCheck className="h-4 w-4 mr-2" />Interactions</TabsTrigger></TabsList>
+        <div className="flex flex-wrap justify-between items-end gap-4 mb-7"><div><p className="text-xs uppercase text-primary mb-2">Practice / Case studies</p><h1 className="text-3xl font-bold">Clinical encounters</h1><p className="text-sm text-muted-foreground mt-2">Synthetic patients · AI drafts · educational use only</p></div><div className="flex flex-wrap gap-3">{mode === 'learning' && <Button variant="outline" onClick={refreshCases} disabled={busy}><RefreshCw className="h-4 w-4 mr-2" />New case</Button>}<Tabs value={mode} onValueChange={setMode}><TabsList><TabsTrigger value="learning">Learning</TabsTrigger><TabsTrigger value="challenge">Challenge</TabsTrigger></TabsList></Tabs></div></div>
+        {mode === 'challenge' ? <ChallengeDashboard
+          cases={cases}
+          attempts={profileData.attempts}
+          badges={profileData.badges}
+          loading={loading || busy}
+          onStart={start}
+          onResume={id => setParams({ attempt: id })}
+          onRefresh={refreshCases}
+        /> : <Tabs defaultValue="cases"><TabsList className="mb-6"><TabsTrigger value="cases"><Stethoscope className="h-4 w-4 mr-2" />Cases</TabsTrigger><TabsTrigger value="references"><ShieldCheck className="h-4 w-4 mr-2" />Interactions</TabsTrigger></TabsList>
           <TabsContent value="cases"><div className="grid max-w-sm gap-5">{cases.map(c => <article key={c.id} className="border border-border rounded-lg overflow-hidden bg-card flex flex-col"><div className="relative aspect-[4/3] bg-muted"><PatientPortrait avatar={c.characters.find(x => x.primary)?.avatar ?? 'woman'} age={c.characters.find(x => x.primary)?.age} name={c.characters.find(x => x.primary)?.name ?? 'Patient'} className="w-full h-full" /><Badge variant="secondary" className="absolute top-3 left-3">{c.specialty}</Badge>{c.emergency && <Clock className="h-5 w-5 absolute right-3 top-3 text-primary" />}</div><div className="p-4 flex flex-col flex-1"><p className="text-xs text-muted-foreground capitalize">{c.difficulty} · Review pending</p><h2 className="font-semibold text-lg mt-2">{c.title}</h2><p className="text-sm text-muted-foreground mt-1">{c.characters.map(x => `${x.name}, ${x.age}`).join(' & ')}</p><Button className="mt-5 w-full justify-between" variant="outline" disabled={busy} onClick={() => start(c.key)}>Open encounter<ArrowUpRight className="h-4 w-4" /></Button></div></article>)}</div><div className="mt-8 py-5 border-t border-border flex flex-wrap gap-3 items-center justify-between"><p className="text-xs text-muted-foreground max-w-xl">Clinical review is pending. Draft cases save learning feedback but do not award competitive points or verified badges.</p><Button variant="ghost" onClick={() => setLegacy(true)}><Sparkles className="h-4 w-4 mr-2" />AI-generated cases</Button></div></TabsContent>
           <TabsContent value="references"><InteractionReference /></TabsContent>
-        </Tabs>
+        </Tabs>}
       </> : <>
         <div className="flex flex-wrap items-center justify-between gap-3 mb-5"><Button variant="ghost" size="sm" className="-ml-3" onClick={library}><ArrowLeft className="h-4 w-4 mr-2" />Case library</Button><div className="flex gap-2 items-center"><Badge variant="outline" className="capitalize">{session.attempt.mode}</Badge><Badge variant="secondary">Review pending</Badge>{remaining !== null && <Badge variant={expired ? 'destructive' : 'outline'}><Clock className="h-3 w-3 mr-1" />{Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, '0')}</Badge>}</div></div>
         <h1 className="text-2xl font-bold mb-2">{session.title}</h1><p className="text-xs text-muted-foreground mb-6">Educational simulation, not real prescribing or diagnostic advice.{remaining !== null && ' The countdown is a learning challenge setting, not a clinical waiting interval.'}</p>
-        {session.attempt.result ? <ClinicalResultView result={session.attempt.result} onRetry={() => start(session.caseKey)} onLibrary={library} onProfile={() => navigate('/profile?tab=clinical')} /> : <div className="grid lg:grid-cols-[290px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)] gap-8">
+        {session.attempt.result ? <ClinicalResultView result={session.attempt.result} sources={session.encounter.sources} onRetry={() => start(session.caseKey, session.attempt.mode)} onLibrary={library} onProfile={() => navigate('/profile?tab=clinical')} /> : session.attempt.mode === 'challenge' ? <InteractiveChallenge
+          session={session}
+          remaining={remaining}
+          busy={busy}
+          disabled={!!disabled}
+          saved={saved}
+          onEvent={event}
+          onChange={update}
+          onSave={save}
+          onSubmit={submit}
+        /> : <div className="grid lg:grid-cols-[290px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)] gap-8">
           <aside className="space-y-6"><div className="flex gap-4 items-center lg:block">{session.encounter.characters.filter(c => c.primary).map(c => <div key={c.id} className="flex gap-4 items-center lg:block"><PatientPortrait avatar={c.avatar} age={c.age} name={c.name} className="w-24 h-24 lg:w-full lg:h-auto lg:aspect-[4/3] rounded-lg" /><div className="lg:mt-3"><h2 className="font-semibold text-lg">{c.name}</h2><p className="text-sm text-muted-foreground">{c.age} years · {c.role}</p></div></div>)}</div>
             {session.encounter.characters.filter(c => !c.primary).map(c => <div key={c.id} className="flex items-center gap-3 border-t border-border pt-3"><PatientPortrait avatar={c.avatar} age={c.age} name={c.name} className="w-12 h-12 rounded-md" /><div><p className="text-sm font-medium">{c.name}</p><p className="text-xs text-muted-foreground">{c.role} · {c.age} years · accompanying</p></div></div>)}
             <section><h3 className="text-xs uppercase text-muted-foreground mb-3 flex gap-2 items-center"><HeartPulse className="h-4 w-4 text-primary" />Observations</h3><dl className="grid grid-cols-2 gap-3">{Object.entries(session.encounter.vitals).map(([k, v]) => <div key={k} className="border-l-2 border-border pl-3"><dt className="text-xs text-muted-foreground">{k}</dt><dd className="text-sm font-semibold mt-1">{v}</dd></div>)}</dl></section>
